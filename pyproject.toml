@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Prompete"
+dynamic = ["version"]
+description = "A template project for Prompete"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Your Name", email = "your.email@example.com" }
+]
+requires-python = ">=3.6"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent"
+]
+
+dependencies = [
+    "wheel",
+    "pytest",
+    "LLMEasyTools>=0.23",
+    "setuptools>=61.0",
+    "pytest-mock",
+    "litellm"
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/prompete"
+
+
+[tool.pytest.ini_options]
+addopts = "-v"
+testpaths = ["prompete"]
+
+[tool.setuptools]
+packages = ["prompete"]
+
+[tool.setuptools.package-data]
+prompete = ["*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "prompete.__version__"}
