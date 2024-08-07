@@ -173,6 +173,8 @@ class Chat:
                 print(result.stack_trace)
                 raise Exception(result.error)
             if isinstance(result.output, Prompt):
+                # TODO: This is not consistent
+                #  the messaeg saved in the chat is not rendered but converted to a string in LLMEasyTools
                 output = self.render_prompt(result.output)
                 outputs.append(output)
             else:

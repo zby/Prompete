@@ -1,20 +1,14 @@
 from prompete import Chat
 
-from dataclasses import dataclass
-from typing import List
-import json
-
-# Define a simple function to be called by the LLM
 def get_current_weather(location: str, unit: str = "celsius") -> str:
     """Get the current weather in a given location"""
     # In a real scenario, you would call an actual weather API here
-    weather_data = {
+    return {
         "location": location,
         "temperature": 22,
         "unit": unit,
         "forecast": ["sunny", "windy"]
     }
-    return json.dumps(weather_data)
 
 # Create a Chat instance
 chat = Chat(model="gpt-4o-mini")

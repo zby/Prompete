@@ -110,26 +110,39 @@ print(chat(task_prompt))
 The prompt tempalte is found by looking up the class name in the templates defined in the renderer.
 The template can use the prompt fields as variables.
 
-### Function Calling with LLMEasyTools
+### Function Calling
 
-Prompete integrates LLMEasyTools for easy function calling:
+Prompete integrates LLMEasyTools for easy function calling.
+Here is the common weather example:
 
 ```python
 from prompete import Chat
-from llm_easy_tools import LLMFunction
 
-def multiply(a: int, b: int) -> int:
-    return a * b
+def get_current_weather(location: str, unit: str = "celsius") -> str:
+    """Get the current weather in a given location"""
+    # In a real scenario, you would call an actual weather API here
+    return {
+        "location": location,
+        "temperature": 22,
+        "unit": unit,
+        "forecast": ["sunny", "windy"]
+    }
 
-multiply_function = LLMFunction(multiply)
+# Create a Chat instance
+chat = Chat(model="gpt-4o-mini")
 
-chat = Chat(model="gpt-3.5-turbo")
-chat.append("What is 5 times 7?")
+# Define the user's question
+user_question = "What's the weather like in London?"
+content = chat(user_question, tools=[get_current_weather])
 
-response = chat.llm_reply(tools=[multiply_function])
-result = chat.process()
+# Process the response
+outputs = chat.process()
 
-print(result)
+# Print the results
+print("User:", user_question)
+print("Content of the response:", content)
+# There might be more than one function call in the response - this is why output is a list
+print("Weather data:", outputs[0] if outputs else "No weather data retrieved")
 ```
 
 ## Key Concepts
