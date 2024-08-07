@@ -162,6 +162,14 @@ We welcome contributions to Prompete! Please follow these steps:
 
 For major changes, please open an issue first to discuss the proposed changes.
 
+### Writing Test Cases
+
+We strongly encourage writing test cases for both bug reports and feature requests:
+
+- For bugs: Include a test case that reproduces the issue, showing expected vs. actual behavior.
+- For features: Provide test cases describing the desired functionality, including inputs and expected outputs.
+
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
