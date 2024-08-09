@@ -376,3 +376,39 @@ def test_process_tool_calls(mocker):
 
     # Verify that the correct tool was called
     assert chat.messages[-1]["name"] == "get_current_weather"
+
+
+def test_llm_reply_strict_parameter(mocker):
+    # Mock the get_tool_defs function
+    mock_get_tool_defs = mocker.patch('prompete.chat.get_tool_defs')
+
+    # Mock the completion function
+    mock_completion = mocker.patch('prompete.chat.completion')
+    mock_completion.return_value = mocker.Mock(choices=[mocker.Mock(message=Message(content="Test response", role="assistant"))])
+
+    # Create a Chat instance
+    chat = Chat(model="gpt-4-0125-preview")
+
+    # Define a dummy tool function
+    def dummy_tool():
+        pass
+
+    # Call llm_reply with strict=True
+    chat.llm_reply(tools=[dummy_tool], strict=True)
+
+    # Assert that get_tool_defs was called with strict=True
+    mock_get_tool_defs.assert_called_once_with([dummy_tool], strict=True)
+
+    # Reset the mock and call llm_reply with strict=False
+    mock_get_tool_defs.reset_mock()
+    chat.llm_reply(tools=[dummy_tool], strict=False)
+
+    # Assert that get_tool_defs was called with strict=False
+    mock_get_tool_defs.assert_called_once_with([dummy_tool], strict=False)
+
+    # Reset the mock and call llm_reply without specifying strict (should default to False)
+    mock_get_tool_defs.reset_mock()
+    chat.llm_reply(tools=[dummy_tool])
+
+    # Assert that get_tool_defs was called with the default value of strict (False)
+    mock_get_tool_defs.assert_called_once_with([dummy_tool], strict=False)

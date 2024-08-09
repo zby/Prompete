@@ -176,7 +176,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## Support
 
-If you encounter any issues or have questions, please [open an issue](https://github.com/yourusername/prompete/issues) on our GitHub repository.
+If you encounter any issues or have questions, please [open an issue](https://github.com/zby/prompete/issues) on our GitHub repository.
 
 ## Acknowledgements
 

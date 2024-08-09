@@ -107,9 +107,9 @@ class Chat:
         response = self.llm_reply(**kwargs)
         return response.choices[0].message.content
 
-    def llm_reply(self, tools=[], **kwargs) -> ModelResponse:
+    def llm_reply(self, tools=[], strict=False, **kwargs) -> ModelResponse:
         self.saved_tools = tools
-        schemas = get_tool_defs(tools)
+        schemas = get_tool_defs(tools, strict=strict)
         args = {
             "model": self.model,
             "messages": self.messages,
