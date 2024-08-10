@@ -108,6 +108,8 @@ class Chat:
         return response.choices[0].message.content
 
     def llm_reply(self, tools=[], strict=False, **kwargs) -> ModelResponse:
+        if strict and not tools:
+            raise ValueError("Tools must be provided if strict is True")
         self.saved_tools = tools
         schemas = get_tool_defs(tools, strict=strict)
         args = {
