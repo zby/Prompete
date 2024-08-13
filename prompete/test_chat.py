@@ -384,7 +384,8 @@ def test_llm_reply_strict_parameter(mocker):
 
     # Mock the completion function
     mock_completion = mocker.patch('prompete.chat.completion')
-    mock_completion.return_value = mocker.Mock(choices=[mocker.Mock(message=Message(content="Test response", role="assistant"))])
+    mock_completion.return_value = mocker.Mock(
+        choices=[mocker.Mock(message=Message(content="Test response", role="assistant"))])
 
     # Create a Chat instance
     chat = Chat(model="gpt-4-0125-preview")

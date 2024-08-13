@@ -2,27 +2,28 @@ from prompete import Chat
 from pydantic import BaseModel
 from pprint import pprint
 
-from pydantic import BaseModel
-from pprint import pprint
-
 
 class Address(BaseModel):
     street: str
     city: str
+
 
 class Company(BaseModel):
     name: str
     speciality: str
     address: Address
 
+
 class CompaniesList(BaseModel):
     companies_list: list[Company]
+
 
 def print_companies(companies: CompaniesList):
     pprint(companies)
     return companies
 
-#pprint(get_tool_defs([print_companies]))
+
+# pprint(get_tool_defs([print_companies]))
 
 file_path = 'examples/Three_Companies_Story.txt'
 with open(file_path, 'r') as file:
@@ -39,8 +40,8 @@ print_companies(reply_struct)
 # OUTPUT
 [
     Company(
-        name='Aether Innovations', 
-        speciality='sustainable energy solutions', 
+        name='Aether Innovations',
+        speciality='sustainable energy solutions',
         address=Address(street='150 Futura Plaza', city='Metropolis')),
     Company(
         name='Gastronauts',
@@ -50,4 +51,3 @@ print_companies(reply_struct)
         name='SereneScape',
         speciality='digital wellness',
         address=Address(street='800 Tranquil Trail', city='Metropolis'))]
-

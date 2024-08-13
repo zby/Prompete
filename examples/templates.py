@@ -17,8 +17,8 @@ from jinja2 import Environment, FileSystemLoader, ChoiceLoader
 # when trying to use the respective APIs.
 
 # Uncomment the desired model:
-#model = "claude-3-haiku-20240307"  # Anthropic model
-#model = "llama2-70b-4096"  # Groq model
+# model = "claude-3-haiku-20240307"  # Anthropic model
+# model = "llama2-70b-4096"  # Groq model
 model = "gpt-4o-mini"  # OpenAI model
 
 # Get the directory of the current script
@@ -34,9 +34,11 @@ renderer = Environment(
 # Add a custom filter to the renderer
 renderer.filters['uppercase'] = lambda x: x.upper()
 
+
 @dataclass(frozen=True)
 class SpecialSystemPrompt(SystemPrompt):
     language: str
+
 
 # Create a Chat instance with the renderer
 chat = Chat(
@@ -45,12 +47,14 @@ chat = Chat(
     system_prompt=SpecialSystemPrompt(language="Python")
 )
 
+
 # Define a custom prompt class
 @dataclass(frozen=True)
 class TaskPrompt(Prompt):
     user_name: str
     language: str
     task: str
+
 
 # Example conversation
 task_prompt = TaskPrompt(
@@ -65,9 +69,11 @@ print(chat(task_prompt))
 # Follow-up question using a regular string
 print(chat("Can you explain how the factorial function works step by step?"))
 
+
 @dataclass(frozen=True)
 class CustomPrompt(Prompt):
     message: str
+
 
 custom_prompt = CustomPrompt(message="hello world")
 print(chat(custom_prompt))

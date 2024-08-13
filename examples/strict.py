@@ -2,6 +2,7 @@ from prompete import Chat
 
 from typing import Annotated
 
+
 def get_current_weather(location: str, unit: Annotated[str, "celsius or fahrenheit"]) -> str:
     # in strict mode there cannot be default values in the function signature
     # this is why we use Annotated to provide a description of the unit parameter
@@ -13,6 +14,7 @@ def get_current_weather(location: str, unit: Annotated[str, "celsius or fahrenhe
         "unit": unit,
         "forecast": ["sunny", "windy"]
     }
+
 
 # Create a Chat instance
 chat = Chat(model="gpt-4o-mini")

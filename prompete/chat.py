@@ -1,4 +1,4 @@
-from typing import Callable, Optional, Type, Union, Protocol, Any
+from typing import Callable, Optional, Union, Protocol, Any
 from dataclasses import dataclass, field
 from litellm import completion, ModelResponse, Message
 from pprint import pformat
@@ -154,7 +154,7 @@ class Chat:
 
         if len(schemas) > 0:
             if not hasattr(message, "tool_calls") or not message.tool_calls:
-                logging.warning(f"No function call:\n")
+                logging.warning("No function call.")
 
         self.append(message)
 

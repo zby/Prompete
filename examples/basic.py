@@ -11,8 +11,8 @@ from prompete import Chat
 # export GROQ_API_KEY='your-groq-api-key-here'
 
 # Uncomment the desired model:
-#model = "claude-3-haiku-20240307"  # Anthropic model
-#model = "llama2-70b-4096"  # Groq model
+# model = "claude-3-haiku-20240307"  # Anthropic model
+# model = "llama2-70b-4096"  # Groq model
 model = "gpt-4o-mini"  # OpenAI model
 
 # Create a Chat instance with a system prompt

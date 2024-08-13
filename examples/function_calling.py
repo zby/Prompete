@@ -1,5 +1,6 @@
 from prompete import Chat
 
+
 def get_current_weather(location: str, unit: str = "celsius") -> str:
     """Get the current weather in a given location"""
     # In a real scenario, you would call an actual weather API here
@@ -9,6 +10,7 @@ def get_current_weather(location: str, unit: str = "celsius") -> str:
         "unit": unit,
         "forecast": ["sunny", "windy"]
     }
+
 
 # Create a Chat instance
 chat = Chat(model="gpt-4o-mini")
