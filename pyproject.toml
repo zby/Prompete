@@ -44,3 +44,8 @@ prompete = ["*"]
 
 [tool.setuptools.dynamic]
 version = {attr = "prompete.__version__"}
+
+[pytest]
+markers = [
+    "using_external_apis: marks tests as using external APIs, and should be skipped unless explicitly requested",
+]
