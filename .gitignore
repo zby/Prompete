@@ -3,6 +3,8 @@
 **/__pycache__/
 .venv/
 venv*/
+venv*
+dist/
 .vscode/
 .idea/
 .DS_Store
