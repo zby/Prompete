@@ -53,7 +53,6 @@ class Chat:
     custom_llm_provider: Optional[str] = None
     emulate_response_format: Optional[bool] = None
 
-
     def __post_init__(self):
         if self.system_prompt:
             message = self.make_message(self.system_prompt)
@@ -65,7 +64,6 @@ class Chat:
                 self.emulate_response_format = False
             else:
                 self.emulate_response_format = True
-
 
     def render_prompt(self, obj: object, **kwargs) -> str:
         template_name = type(obj).__name__
@@ -81,7 +79,6 @@ class Chat:
 
         result = template.render(**obj_context)
         return result
-
 
     def make_message(self, message: Union[Prompt, str, dict, Message]) -> dict:
         if isinstance(message, Prompt):
@@ -107,7 +104,9 @@ class Chat:
         message_dict = self.make_message(message)
         self.messages.append(message_dict)
 
-    def __call__(self, message: Prompt | dict | Message | str, response_format=None, **kwargs) -> str:
+    def __call__(
+        self, message: Prompt | dict | Message | str, response_format=None, **kwargs
+    ) -> str:
         """
         Allow the Chat object to be called as a function.
         Appends the given message and calls llm_reply with the provided kwargs.
@@ -117,10 +116,10 @@ class Chat:
         self.append(message)
 
         if response_format:
-            if kwargs.get('tools'):
+            if kwargs.get("tools"):
                 raise ValueError("tools and response_format cannot be used together")
             if self.emulate_response_format:
-                kwargs['tools'] = [response_format]
+                kwargs["tools"] = [response_format]
             else:
                 kwargs["response_format"] = response_format
         response = self.llm_reply(**kwargs)

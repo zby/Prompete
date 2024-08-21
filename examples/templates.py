@@ -26,13 +26,15 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 
 # Create a Jinja2 Environment instance with multiple template directories
 renderer = Environment(
-    loader=ChoiceLoader([
-        FileSystemLoader(os.path.join(current_dir, "templates")),
-    ])
+    loader=ChoiceLoader(
+        [
+            FileSystemLoader(os.path.join(current_dir, "templates")),
+        ]
+    )
 )
 
 # Add a custom filter to the renderer
-renderer.filters['uppercase'] = lambda x: x.upper()
+renderer.filters["uppercase"] = lambda x: x.upper()
 
 
 @dataclass(frozen=True)
@@ -42,9 +44,7 @@ class SpecialSystemPrompt(SystemPrompt):
 
 # Create a Chat instance with the renderer
 chat = Chat(
-    model=model,
-    renderer=renderer,
-    system_prompt=SpecialSystemPrompt(language="Python")
+    model=model, renderer=renderer, system_prompt=SpecialSystemPrompt(language="Python")
 )
 
 
@@ -60,7 +60,7 @@ class TaskPrompt(Prompt):
 task_prompt = TaskPrompt(
     user_name="Alice",
     language="Python",
-    task="write a function to calculate the factorial of a number"
+    task="write a function to calculate the factorial of a number",
 )
 
 # Send the task prompt and print the response

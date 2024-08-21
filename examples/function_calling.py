@@ -8,7 +8,7 @@ def get_current_weather(location: str, unit: str = "celsius") -> str:
         "location": location,
         "temperature": 22,
         "unit": unit,
-        "forecast": ["sunny", "windy"]
+        "forecast": ["sunny", "windy"],
     }
 
 

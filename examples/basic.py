@@ -18,7 +18,7 @@ model = "gpt-4o-mini"  # OpenAI model
 # Create a Chat instance with a system prompt
 chat = Chat(
     model=model,
-    system_prompt="You are a helpful assistant specializing in Python programming."
+    system_prompt="You are a helpful assistant specializing in Python programming.",
 )
 
 # Start the conversation
