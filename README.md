@@ -30,6 +30,7 @@ templates, then progressively adopt more advanced features as your needs evolve.
 - Easy function calling with LLMEasyTools
 - Conversation management with the Chat interface
 - System prompts and custom prompt roles
+- Emulate `response_format` for models that don't support it
 
 ## Installation
 
