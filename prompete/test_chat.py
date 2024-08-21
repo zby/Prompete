@@ -411,7 +411,7 @@ def test_chat_response_format(mocker):
     mock_completion.return_value = create_mock_response(test_response_object.model_dump())
 
     # Create a Chat instance
-    chat = Chat(model="some_model")
+    chat = Chat(model="some_model", emulate_response_format=False)
 
     # Call the chat with response_format
     response = chat("Hello, can you give me a test response?", response_format=TestResponseFormat)
@@ -432,3 +432,48 @@ def test_chat_response_format(mocker):
     # This should raise a ValidationError
     with pytest.raises(ValueError):
         chat("hello", response_format=TestResponseFormat)
+
+def test_chat_emulate_response_format(mocker):
+    from pydantic import BaseModel
+
+    class TestResponseFormat(BaseModel):
+        message: str
+        confidence: float
+
+    test_response_object = TestResponseFormat(message="Emulated response", confidence=0.8)
+
+    # Mock the completion function
+    mock_completion = mocker.patch('prompete.chat.completion')
+    mock_completion.return_value = create_mock_response(
+        content=None,
+        tool_calls=[{
+            "id": "call_123",
+            "type": "function",
+            "function": {
+                "name": "TestResponseFormat",
+                "arguments": json.dumps(test_response_object.model_dump())
+            }
+        }]
+    )
+
+    # Create a Chat instance with emulate_response_format=True
+    chat = Chat(model="some_model", emulate_response_format=True)
+
+    # Call the chat with response_format
+    response = chat("Hello, can you give me a test response?", response_format=TestResponseFormat)
+
+    # Assert that the response is an instance of TestResponseFormat
+    assert isinstance(response, TestResponseFormat)
+    assert response == test_response_object
+
+    # Verify that the completion function was called with the correct parameters
+    mock_completion.assert_called_once()
+    call_args = mock_completion.call_args[1]
+    assert 'response_format' not in call_args
+    assert len(call_args['tools']) == 1
+    assert call_args['tools'][0]['function']['name'] == 'TestResponseFormat'
+
+    # Test that using tools and response_format together raises an error
+    with pytest.raises(ValueError, match="tools and response_format cannot be used together"):
+        chat("Hello", response_format=TestResponseFormat, tools=[lambda x: x])
+        chat("Hello", response_format=TestResponseFormat, tools=[lambda x: x])

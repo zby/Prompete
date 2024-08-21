@@ -1,6 +1,6 @@
 from typing import Callable, Optional, Union, Protocol, Any
 from dataclasses import dataclass, field
-from litellm import completion, ModelResponse, Message
+from litellm import completion, ModelResponse, Message, get_supported_openai_params
 from pprint import pformat
 
 from llm_easy_tools import get_tool_defs, LLMFunction
@@ -51,12 +51,21 @@ class Chat:
     saved_tools: list[Union[LLMFunction, Callable]] = field(default_factory=list)
     retries: int = 3
     custom_llm_provider: Optional[str] = None
+    emulate_response_format: Optional[bool] = None
+
 
     def __post_init__(self):
         if self.system_prompt:
             message = self.make_message(self.system_prompt)
             message["role"] = "system"
             self.append(message)
+        if self.emulate_response_format is None:
+            params = get_supported_openai_params(model=self.model)
+            if params and "response_format" in params:
+                self.emulate_response_format = False
+            else:
+                self.emulate_response_format = True
+
 
     def render_prompt(self, obj: object, **kwargs) -> str:
         template_name = type(obj).__name__
@@ -72,6 +81,7 @@ class Chat:
 
         result = template.render(**obj_context)
         return result
+
 
     def make_message(self, message: Union[Prompt, str, dict, Message]) -> dict:
         if isinstance(message, Prompt):
@@ -102,14 +112,24 @@ class Chat:
         Allow the Chat object to be called as a function.
         Appends the given message and calls llm_reply with the provided kwargs.
         Returns the content of the response message as a string or as the provided response_format object.
+        If the underlying LLM does not support response_format, we emulate it by using tools - but this is not perfecly reliable.
         """
         self.append(message)
+
         if response_format:
-            kwargs["response_format"] = response_format
+            if kwargs.get('tools'):
+                raise ValueError("tools and response_format cannot be used together")
+            if self.emulate_response_format:
+                kwargs['tools'] = [response_format]
+            else:
+                kwargs["response_format"] = response_format
         response = self.llm_reply(**kwargs)
         message = response.choices[0].message
         if response_format:
-            return response_format.model_validate_json(message.content)
+            if self.emulate_response_format:
+                return self.process()[0]
+            else:
+                return response_format.model_validate_json(message.content)
         else:
             return message.content
 
