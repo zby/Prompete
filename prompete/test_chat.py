@@ -1,14 +1,19 @@
 import pytest
 from dataclasses import dataclass
-from litellm import Message
+from litellm import Message, TextCompletionResponse, TextChoices
+from typing import Any, Optional
+import json
 
 from llm_easy_tools import ToolResult
 from jinja2 import Environment, DictLoader, FileSystemLoader, ChoiceLoader
 
 from prompete import Chat, Prompt, SystemPrompt
 
-import json
-
+def create_mock_response(content: Any, role: str = "assistant", tool_calls: Optional[list] = None) -> TextCompletionResponse:
+    message = Message(content=json.dumps(content) if isinstance(content, dict) else content, 
+                      role=role,
+                      tool_calls=tool_calls or [])
+    return TextCompletionResponse(choices=[TextChoices(message=message)])
 
 def test_append():
     @dataclass(frozen=True)
@@ -274,19 +279,10 @@ def test_render_prompt():
 
 
 def test_llm_reply_with_tool_choice(mocker):
+    response = create_mock_response("Test response")
     # Mock the litellm completion function
     mock_completion = mocker.patch("prompete.chat.completion")
-
-    # Create a litellm Message object
-    mock_message = Message(content="Test response", role="assistant", tool_calls=[])
-
-    mock_choice = mocker.Mock()
-    mock_choice.message = mock_message
-
-    mock_response = mocker.Mock()
-    mock_response.choices = [mock_choice]
-
-    mock_completion.return_value = mock_response
+    mock_completion.return_value = response
 
     # Create a Chat instance
     renderer = Environment(loader=DictLoader({}))
@@ -308,7 +304,7 @@ def test_llm_reply_with_tool_choice(mocker):
     assert response.choices[0].message.content == "Test response"
 
     # Assert that the message was appended to the chat
-    assert chat.messages[-1] == mock_message
+    assert chat.messages[-1] == response.choices[0].message
 
 
 def test_process_tool_calls(mocker):
@@ -327,31 +323,17 @@ def test_process_tool_calls(mocker):
 
     # Mock the litellm completion function
     mock_completion = mocker.patch("prompete.chat.completion")
-
-    # Create a litellm Message object with a tool call
-    from litellm import Message
-    mock_message = Message(
+    mock_completion.return_value = create_mock_response(
         content=None,
-        role="assistant",
-        tool_calls=[
-            {
-                "id": "call_123",
-                "type": "function",
-                "function": {
-                    "name": "get_current_weather",
-                    "arguments": json.dumps(weather_args)
-                }
+        tool_calls=[{
+            "id": "call_123",
+            "type": "function",
+            "function": {
+                "name": "get_current_weather",
+                "arguments": json.dumps(weather_args)
             }
-        ]
+        }]
     )
-
-    mock_choice = mocker.Mock()
-    mock_choice.message = mock_message
-
-    mock_response = mocker.Mock()
-    mock_response.choices = [mock_choice]
-
-    mock_completion.return_value = mock_response
 
     # Create a Chat instance
     chat = Chat(model="gpt-4-0125-preview")
@@ -384,8 +366,7 @@ def test_llm_reply_strict_parameter(mocker):
 
     # Mock the completion function
     mock_completion = mocker.patch('prompete.chat.completion')
-    mock_completion.return_value = mocker.Mock(
-        choices=[mocker.Mock(message=Message(content="Test response", role="assistant"))])
+    mock_completion.return_value = create_mock_response("Test response")
 
     # Create a Chat instance
     chat = Chat(model="gpt-4-0125-preview")
@@ -413,3 +394,41 @@ def test_llm_reply_strict_parameter(mocker):
 
     # Assert that get_tool_defs was called with the default value of strict (False)
     mock_get_tool_defs.assert_called_once_with([dummy_tool], strict=False)
+
+
+
+def test_chat_response_format(mocker):
+    from pydantic import BaseModel
+
+    class TestResponseFormat(BaseModel):
+        message: str
+        confidence: float
+
+    test_response_object = TestResponseFormat(message="Test response", confidence=0.95)
+
+    # Mock the completion function
+    mock_completion = mocker.patch('prompete.chat.completion')
+    mock_completion.return_value = create_mock_response(test_response_object.model_dump())
+
+    # Create a Chat instance
+    chat = Chat(model="some_model")
+
+    # Call the chat with response_format
+    response = chat("Hello, can you give me a test response?", response_format=TestResponseFormat)
+
+    # Assert that the response is an instance of TestResponseFormat
+    assert isinstance(response, TestResponseFormat)
+    assert response.message == "Test response"
+    assert response.confidence == 0.95
+
+    # Verify that the completion function was called with the correct parameters
+    mock_completion.assert_called_once()
+    call_args = mock_completion.call_args[1]
+    assert call_args['response_format'] == TestResponseFormat
+
+    # Test with an invalid response
+    mock_completion.return_value = create_mock_response({"message": "Invalid response"})
+
+    # This should raise a ValidationError
+    with pytest.raises(ValueError):
+        chat("hello", response_format=TestResponseFormat)

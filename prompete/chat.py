@@ -97,15 +97,21 @@ class Chat:
         message_dict = self.make_message(message)
         self.messages.append(message_dict)
 
-    def __call__(self, message: Prompt | dict | Message | str, **kwargs) -> str:
+    def __call__(self, message: Prompt | dict | Message | str, response_format=None, **kwargs) -> str:
         """
         Allow the Chat object to be called as a function.
         Appends the given message and calls llm_reply with the provided kwargs.
-        Returns the content of the response message as a string.
+        Returns the content of the response message as a string or as the provided response_format object.
         """
         self.append(message)
+        if response_format:
+            kwargs["response_format"] = response_format
         response = self.llm_reply(**kwargs)
-        return response.choices[0].message.content
+        message = response.choices[0].message
+        if response_format:
+            return response_format.model_validate_json(message.content)
+        else:
+            return message.content
 
     def llm_reply(self, tools=[], strict=False, **kwargs) -> ModelResponse:
         if strict and not tools:
