@@ -26,7 +26,7 @@ then progressively adopt more advanced features as your needs evolve.
 
 - Template-based prompt generation using Jinja2
 - Integration with various LLM APIs through LiteLLM
-- Emulate `response_format` for models that don't support it
+- Emulate `response_format` by using `tools` (for models that don't support `response_format`)
 - Easy function calling with LLMEasyTools
 - Conversation management with the Chat interface
 - System prompts and custom prompt roles
