@@ -5,6 +5,7 @@ from pprint import pformat
 
 from llm_easy_tools import get_tool_defs, LLMFunction
 from llm_easy_tools.processor import process_message
+from llm_easy_tools.types import ChatCompletionMessageToolCall
 
 import logging
 
@@ -34,7 +35,6 @@ class Renderer(Protocol):
     def get_template(self, name: str) -> Any: ...
 
     def render(self, template: str, **kwargs: Any) -> str: ...
-
 
 @dataclass
 class Chat:
@@ -93,7 +93,7 @@ class Chat:
                 raise ValueError("Dict message must contain 'role' and 'content' keys")
             return message
         elif isinstance(message, Message):
-            return message
+            return message.model_dump()
         else:
             raise ValueError(f"Unsupported message type: {type(message)}")
 
@@ -188,7 +188,7 @@ class Chat:
     def process(self, **kwargs):
         if not self.messages:
             raise ValueError("No messages to process")
-        message = self.messages[-1]
+        message = Message(**self.messages[-1])
         results = process_message(message, self.saved_tools, **kwargs)
         outputs = []
         for result in results:

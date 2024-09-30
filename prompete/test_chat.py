@@ -310,7 +310,7 @@ def test_llm_reply_with_tool_choice(mocker):
     assert response.choices[0].message.content == "Test response"
 
     # Assert that the message was appended to the chat
-    assert chat.messages[-1] == response.choices[0].message
+    assert chat.messages[-1] == response.choices[0].message.model_dump()
 
 
 def test_process_tool_calls(mocker):
