@@ -1,5 +1,5 @@
 from prompete import Chat
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pprint import pprint
 
 
@@ -11,7 +11,7 @@ class Address(BaseModel):
 class Company(BaseModel):
     name: str
     specialty: str
-    address: Address
+    address: Address = Field(..., description='The address of the company headquarters')  # Address of the company headquarters
 
 
 class CompaniesList(BaseModel):
@@ -29,6 +29,8 @@ with open(file_path, "r") as file:
 
 # model = "claude-3-haiku-20240307"  # Currently Anthropic does not support response_format - but we emulate it by using tools
 #model="ollama_chat/llama3:instruct" 
+#model = "ollama_chat/llama3.1:8b-instruct-q8_0"
+
 model = "gpt-4o-mini"
 chat = Chat(model=model, emulate_response_format=True)
 
