@@ -8,6 +8,7 @@ from llm_easy_tools.processor import process_message
 from llm_easy_tools.types import ChatCompletionMessageToolCall
 
 import logging
+import json
 
 
 # Configure logging for this module
@@ -102,6 +103,7 @@ class Chat:
         Append a message to the chat.
         """
         message_dict = self.make_message(message)
+        logging.debug(f"Appending message: {message_dict}")
         self.messages.append(message_dict)
 
     def __call__(
@@ -114,7 +116,10 @@ class Chat:
         If the underlying LLM does not support response_format, we emulate it by using tools - but this is not perfecly reliable.
         """
         self.append(message)
+        response_content = self.get_llm_response(response_format=response_format, **kwargs)
+        return response_content
 
+    def get_llm_response(self, response_format=None, **kwargs) -> str:
         if response_format:
             if kwargs.get("tools"):
                 raise ValueError("tools and response_format cannot be used together")
@@ -147,13 +152,13 @@ class Chat:
 
         if len(schemas) > 0:
             args["tools"] = schemas
-            if len(schemas) == 1:
-                args["tool_choice"] = {
-                    "type": "function",
-                    "function": {"name": schemas[0]["function"]["name"]},
-                }
-            else:
-                args["tool_choice"] = "auto"
+            #if len(schemas) == 1:
+            #    args["tool_choice"] = {
+            #        "type": "function",
+            #        "function": {"name": schemas[0]["function"]["name"]},
+            #    }
+            #else:
+            args["tool_choice"] = "auto"
 
         args.update(kwargs)
 
@@ -215,8 +220,28 @@ class Chat:
         """
         if not self.messages:
             return None
-        message = Message(**self.messages[-1])
-        return message if hasattr(message, "tool_calls") else None
+        dict_message = self.messages[-1]
+        message = Message(**dict_message)
+        if hasattr(message, "tool_calls") and message.tool_calls:
+            return message
+        else:
+            return None
+    
+    def tool_loop(self, message: Prompt | dict | Message | str, max_loops: int, tools: list[Callable], **kwargs) -> Optional[str]:
+        """
+        Repeatedly call the __call__ method until the LLM response does not contain a tool call
+        or the maximum number of loops is reached.
+        """
+        response = self.__call__(message, tools=tools, **kwargs)
+        loop_count = 0
+        while loop_count < max_loops:
+            if not self.get_tool_calls_message():
+                return self.messages[-1]['content']
+            self.process()
+            self.get_llm_response(tools=tools, **kwargs)
+            loop_count += 1
+        return None
+
 
 if __name__ == "__main__":
     import os
