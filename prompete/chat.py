@@ -40,7 +40,7 @@ class Renderer(Protocol):
 class Chat:
     model: str
     renderer: Optional[Renderer] = None
-    messages: list[Union[dict, Message]] = field(default_factory=list)
+    messages: list[dict] = field(default_factory=list)
     system_prompt: Optional[Union[Prompt, str, dict, Message]] = None
     fail_on_tool_error: bool = (
         True  # if False the error message is passed to the LLM to fix the call, if True exception is raised
@@ -186,9 +186,9 @@ class Chat:
         return result
 
     def process(self, **kwargs):
-        if not self.messages:
-            raise ValueError("No messages to process")
-        message = Message(**self.messages[-1])
+        message = self.get_tool_calls_message()
+        if not message:
+            raise ValueError("No message to process")
         results = process_message(message, self.saved_tools, **kwargs)
         outputs = []
         for result in results:
@@ -209,12 +209,14 @@ class Chat:
 
         return outputs
 
-    def get_last_message(self) -> Optional[Union[dict, Message]]:
+    def get_tool_calls_message(self) -> Message:
         """
-        Return the last message in the chat history, or None if the history is empty.
+        Return the last message in the chat history if it has 'tool_calls' key, or None if the history is empty.
         """
-        return self.messages[-1] if self.messages else None
-
+        if not self.messages:
+            return None
+        message = Message(**self.messages[-1])
+        return message if hasattr(message, "tool_calls") else None
 
 if __name__ == "__main__":
     import os
