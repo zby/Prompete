@@ -13,7 +13,6 @@ import json
 
 # Configure logging for this module
 logger = logging.getLogger("answerbot.chat")
-logger.setLevel(logging.DEBUG)  # Set the logger to capture DEBUG level messages
 
 
 @dataclass(frozen=True)
@@ -49,6 +48,7 @@ class Chat:
     one_tool_per_step: bool = (
         True  # for stateful tools executing more than one tool call per step is often confusing for the LLM
     )
+    max_loops: int = 3
     saved_tools: list[Union[LLMFunction, Callable]] = field(default_factory=list)
     retries: int = 3
     custom_llm_provider: Optional[str] = None
@@ -107,17 +107,35 @@ class Chat:
         self.messages.append(message_dict)
 
     def __call__(
-        self, message: Prompt | dict | Message | str, response_format=None, **kwargs
+        self,
+        message: Prompt | dict | Message | str,
+        response_format=None,
+        **kwargs
     ) -> str:
         """
         Allow the Chat object to be called as a function.
-        Appends the given message and calls llm_reply with the provided kwargs.
-        Returns the content of the response message as a string or as the provided response_format object.
-        If the underlying LLM does not support response_format, we emulate it by using tools - but this is not perfecly reliable.
+        Appends the given message and gets LLM response, processing any tool calls up to self.max_loops.
+        Returns the content of the first response message without tool calls.
         """
+        logging.debug(f"Starting chat call with message: {message}")
         self.append(message)
-        response_content = self.get_llm_response(response_format=response_format, **kwargs)
-        return response_content
+
+        loop_count = 0
+        while loop_count < self.max_loops:
+            response_content = self.get_llm_response(response_format=response_format, **kwargs)
+
+            # Check if response has tool calls
+            if not self.get_tool_calls_message():
+                logging.debug(f"Found response without tool calls after {loop_count} loops")
+                return response_content
+
+            # Process tool calls and continue loop
+            logging.debug(f"Processing tool calls, loop {loop_count + 1}")
+            self.process()
+            loop_count += 1
+
+        logging.warning(f"Reached maximum loops ({self.max_loops}) without finding non-tool response")
+        return self.messages[-1]['content']
 
     def get_llm_response(self, response_format=None, **kwargs) -> str:
         if response_format:
@@ -152,12 +170,6 @@ class Chat:
 
         if len(schemas) > 0:
             args["tools"] = schemas
-            #if len(schemas) == 1:
-            #    args["tool_choice"] = {
-            #        "type": "function",
-            #        "function": {"name": schemas[0]["function"]["name"]},
-            #    }
-            #else:
             args["tool_choice"] = "auto"
 
         args.update(kwargs)
@@ -227,21 +239,6 @@ class Chat:
         else:
             return None
     
-    def tool_loop(self, message: Prompt | dict | Message | str, max_loops: int, tools: list[Callable], **kwargs) -> Optional[str]:
-        """
-        Repeatedly call the __call__ method until the LLM response does not contain a tool call
-        or the maximum number of loops is reached.
-        """
-        response = self.__call__(message, tools=tools, **kwargs)
-        loop_count = 0
-        while loop_count < max_loops:
-            if not self.get_tool_calls_message():
-                return self.messages[-1]['content']
-            self.process()
-            self.get_llm_response(tools=tools, **kwargs)
-            loop_count += 1
-        return None
-
 
 if __name__ == "__main__":
     import os

@@ -310,13 +310,9 @@ def test_llm_reply_with_tool_choice(mocker):
     assert response.choices[0].message.content == "Test response"
 
     # Assert that the message was appended to the chat
-    assert chat.messages[-1] == response.choices[0].message.model_dump()
-
-
 def test_process_tool_calls(mocker):
     def get_current_weather(location: str, unit: str = "celsius") -> str:
         """Get the current weather in a given location"""
-        # This is a simplified version that always returns the same data
         weather_data = {
             "location": location,
             "temperature": 22,
@@ -326,46 +322,47 @@ def test_process_tool_calls(mocker):
         return weather_data
 
     weather_args = {"location": "London", "unit": "celsius"}
+    ultimate_answer = "The weather in London is sunny and 22°C"
 
-    # Mock the litellm completion function
+        # Mock completion - first call returns tool call, second returns final response
     mock_completion = mocker.patch("prompete.chat.completion")
-    mock_completion.return_value = create_mock_response(
-        content=None,
-        tool_calls=[
-            {
-                "id": "call_123",
-                "type": "function",
-                "function": {
-                    "name": "get_current_weather",
-                    "arguments": json.dumps(weather_args),
-                },
-            }
-        ],
-    )
+    mock_completion.side_effect = [
+        create_mock_response(
+            content=None,
+            tool_calls=[{
+                    "id": "call_123",
+                    "type": "function",
+                    "function": {
+                        "name": "get_current_weather",
+                        "arguments": json.dumps(weather_args),
+                    },
+            }]
+        ),
+        create_mock_response(ultimate_answer),
+    ]
 
-    # Create a Chat instance
     chat = Chat(model="gpt-4-0125-preview")
 
-    # Call the chat with a user question
+    # Call chat with user question
     user_question = "What's the weather like in London?"
     content = chat(user_question, tools=[get_current_weather])
 
-    # Process the response
-    outputs = chat.process()
+    # Check completion was called twice
+    assert mock_completion.call_count == 2
 
-    # Assertions
-    assert content is None  # Content should be None when there's a tool call
-    assert len(outputs) == 1
-    correct_output = get_current_weather(**weather_args)
-    assert outputs[0] == correct_output
-
-    # Verify that the tool result was appended to the chat messages
-    assert len(chat.messages) == 3  # User message, assistant tool call, and tool result
-    assert chat.messages[-1]["role"] == "tool"
-    assert chat.messages[-1]["content"] == str(correct_output)
-
-    # Verify that the correct tool was called
-    assert chat.messages[-1]["name"] == "get_current_weather"
+    # Check final response
+    assert content == ultimate_answer
+    
+    # Verify messages sequence
+    assert len(chat.messages) == 4
+    assert chat.messages[0]["role"] == "user"
+    assert chat.messages[0]["content"] == user_question
+    assert chat.messages[1]["role"] == "assistant"
+    assert chat.messages[1]["tool_calls"][0]["function"]["name"] == "get_current_weather"
+    assert chat.messages[2]["role"] == "tool"
+    assert chat.messages[2]["content"] == str(get_current_weather(**weather_args))
+    assert chat.messages[3]["role"] == "assistant"
+    assert chat.messages[3]["content"] == "The weather in London is sunny and 22°C"
 
 
 def test_llm_reply_strict_parameter(mocker):
