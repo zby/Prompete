@@ -19,10 +19,6 @@ chat = Chat(model="gpt-4o-mini")
 user_question = "What's the weather like in London?"
 content = chat(user_question, tools=[get_current_weather])
 
-# Process the response
-outputs = chat.process()
-
 # Print the results
 print("User:", user_question)
 print("Content of the response:", content)
-print("Weather data:", outputs[0] if outputs else "No weather data retrieved")
