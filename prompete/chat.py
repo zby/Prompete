@@ -10,6 +10,7 @@ from llm_easy_tools.types import ChatCompletionMessageToolCall
 import logging
 import json
 
+from prompete.tool_manager import ToolManager 
 
 # Configure logging for this module
 logger = logging.getLogger("answerbot.chat")
@@ -49,10 +50,10 @@ class Chat:
         True  # for stateful tools executing more than one tool call per step is often confusing for the LLM
     )
     max_loops: int = 3
-    saved_tools: list[Union[LLMFunction, Callable]] = field(default_factory=list)
     retries: int = 3
     custom_llm_provider: Optional[str] = None
     emulate_response_format: Optional[bool] = None
+    tool_manager: Optional[ToolManager] = None
 
     def __post_init__(self):
         if self.system_prompt:
@@ -122,7 +123,12 @@ class Chat:
 
         loop_count = 0
         while loop_count < self.max_loops:
-            response_content = self.get_llm_response(response_format=response_format, **kwargs)
+            if self.tool_manager:
+                tools = self.tool_manager.get_tools()
+            else:
+                tools = []
+
+            response_content = self.get_llm_response(response_format=response_format, tools=tools, **kwargs)
 
             # Check if response has tool calls
             if not self.get_tool_calls_message():
@@ -131,7 +137,7 @@ class Chat:
 
             # Process tool calls and continue loop
             logging.debug(f"Processing tool calls, loop {loop_count + 1}")
-            self.process()
+            self.process(tools)
             loop_count += 1
 
         logging.warning(f"Reached maximum loops ({self.max_loops}) without finding non-tool response")
@@ -149,7 +155,7 @@ class Chat:
         message = response.choices[0].message
         if response_format:
             if self.emulate_response_format:
-                return self.process()[0]
+                return self.process([response_format])[0]
             else:
                 return response_format.model_validate_json(message.content)
         else:
@@ -158,7 +164,6 @@ class Chat:
     def llm_reply(self, tools=[], strict=False, **kwargs) -> ModelResponse:
         if strict and not tools:
             raise ValueError("Tools must be provided if strict is True")
-        self.saved_tools = tools
         schemas = get_tool_defs(tools, strict=strict)
         args = {
             "model": self.model,
@@ -202,11 +207,11 @@ class Chat:
 
         return result
 
-    def process(self, **kwargs):
+    def process(self, tools, **kwargs):
         message = self.get_tool_calls_message()
         if not message:
             raise ValueError("No message to process")
-        results = process_message(message, self.saved_tools, **kwargs)
+        results = process_message(message, tools, **kwargs)
         outputs = []
         for result in results:
             if result.soft_errors:

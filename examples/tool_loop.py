@@ -1,5 +1,5 @@
 import logging
-from prompete import Chat
+from prompete import Chat, ToolList
 from pprint import pprint
 
 # Configure logging
@@ -13,17 +13,17 @@ def get_current_weather(location: str, unit: str = "celsius") -> str:
     # In a real scenario, you would call an actual weather API here
     return {
         "location": location,
-        "temperature": 22,
+        "temperature": 28,
         "unit": unit,
         "forecast": ["sunny", "windy"],
     }
 
 # Create a Chat instance
-chat = Chat(model="gpt-4o-mini")
+chat = Chat(model="gpt-4o-mini", tool_manager=ToolList([get_current_weather]))
 
 # Define the user's question  
 user_question = "Please check the weather in London (using the `get_current_weather` function) and suggest an appropriate outfit."
-answer = chat.tool_loop(user_question, max_loops = 3, tools=[get_current_weather])
+answer = chat(user_question)
 
 # Print the results
 print("User: ", user_question)

@@ -7,8 +7,7 @@ import json
 from llm_easy_tools import ToolResult
 from jinja2 import Environment, DictLoader, FileSystemLoader, ChoiceLoader
 
-from prompete import Chat, Prompt, SystemPrompt
-
+from prompete import Chat, Prompt, SystemPrompt, ToolManager, ToolList
 
 def create_mock_response(
     content: Any, role: str = "assistant", tool_calls: Optional[list] = None
@@ -309,7 +308,6 @@ def test_llm_reply_with_tool_choice(mocker):
     # Assert that the response is correct
     assert response.choices[0].message.content == "Test response"
 
-    # Assert that the message was appended to the chat
 def test_process_tool_calls(mocker):
     def get_current_weather(location: str, unit: str = "celsius") -> str:
         """Get the current weather in a given location"""
@@ -341,11 +339,11 @@ def test_process_tool_calls(mocker):
         create_mock_response(ultimate_answer),
     ]
 
-    chat = Chat(model="gpt-4-0125-preview")
+    chat = Chat(model="gpt-4-0125-preview", tool_manager=ToolList([get_current_weather]))
 
     # Call chat with user question
     user_question = "What's the weather like in London?"
-    content = chat(user_question, tools=[get_current_weather])
+    content = chat(user_question)
 
     # Check completion was called twice
     assert mock_completion.call_count == 2
@@ -373,15 +371,15 @@ def test_llm_reply_strict_parameter(mocker):
     mock_completion = mocker.patch("prompete.chat.completion")
     mock_completion.return_value = create_mock_response("Test response")
 
-    # Create a Chat instance
-    chat = Chat(model="gpt-4-0125-preview")
-
     # Define a dummy tool function
     def dummy_tool():
         pass
 
+    # Create a Chat instance
+    chat = Chat(model="gpt-4-0125-preview")
+
     # Call llm_reply with strict=True
-    chat.llm_reply(tools=[dummy_tool], strict=True)
+    chat.llm_reply(strict=True, tools=[dummy_tool])
 
     # Assert that get_tool_defs was called with strict=True
     mock_get_tool_defs.assert_called_once_with([dummy_tool], strict=True)
@@ -487,10 +485,3 @@ def test_chat_emulate_response_format(mocker):
     assert "response_format" not in call_args
     assert len(call_args["tools"]) == 1
     assert call_args["tools"][0]["function"]["name"] == "TestResponseFormat"
-
-    # Test that using tools and response_format together raises an error
-    with pytest.raises(
-        ValueError, match="tools and response_format cannot be used together"
-    ):
-        chat("Hello", response_format=TestResponseFormat, tools=[lambda x: x])
-        chat("Hello", response_format=TestResponseFormat, tools=[lambda x: x])
