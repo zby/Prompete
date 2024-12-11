@@ -201,7 +201,7 @@ class Chat:
 
         if len(schemas) > 0:
             if not hasattr(message, "tool_calls") or not message.tool_calls:
-                logging.warning("No function call.")
+                logging.warning(f"No function call for schemas: {schemas}.")
 
         self.append(message)
 
