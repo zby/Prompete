@@ -1,6 +1,6 @@
 from typing import Callable, Optional, Union, Protocol, Any
 from dataclasses import dataclass, field
-from litellm import completion, ModelResponse, Message, get_supported_openai_params
+import litellm
 from pprint import pformat
 
 from llm_easy_tools import get_tool_defs, LLMFunction
@@ -10,10 +10,11 @@ from llm_easy_tools.types import ChatCompletionMessageToolCall
 import logging
 import json
 
-from prompete.tool_manager import ToolManager 
+#litellm.modify_params = True
+#litellm.set_verbose=True
 
 # Configure logging for this module
-logger = logging.getLogger("answerbot.chat")
+logger = logging.getLogger("prompete.chat")
 
 
 @dataclass(frozen=True)
@@ -42,7 +43,7 @@ class Chat:
     model: str
     renderer: Optional[Renderer] = None
     messages: list[dict] = field(default_factory=list)
-    system_prompt: Optional[Union[Prompt, str, dict, Message]] = None
+    system_prompt: Optional[Union[Prompt, str, dict, litellm.Message]] = None
     fail_on_tool_error: bool = (
         True  # if False the error message is passed to the LLM to fix the call, if True exception is raised
     )
@@ -52,20 +53,18 @@ class Chat:
     max_loops: int = 3
     retries: int = 3
     custom_llm_provider: Optional[str] = None
-    emulate_response_format: Optional[bool] = None
-    tool_manager: Optional[ToolManager] = None
+    tools: list = field(default_factory=list)
+    can_do_response_format: bool = False
 
     def __post_init__(self):
         if self.system_prompt:
             message = self.make_message(self.system_prompt)
             message["role"] = "system"
             self.append(message)
-        if self.emulate_response_format is None:
-            params = get_supported_openai_params(model=self.model)
-            if params and "response_format" in params:
-                self.emulate_response_format = False
-            else:
-                self.emulate_response_format = True
+        
+        # Check if model supports response_format
+        params = litellm.get_supported_openai_params(model=self.model)
+        self.can_do_response_format = params and "response_format" in params
 
     def render_prompt(self, obj: object, **kwargs) -> str:
         template_name = type(obj).__name__
@@ -82,7 +81,7 @@ class Chat:
         result = template.render(**obj_context)
         return result
 
-    def make_message(self, message: Union[Prompt, str, dict, Message]) -> dict:
+    def make_message(self, message: Union[Prompt, str, dict, litellm.Message]) -> dict:
         if isinstance(message, Prompt):
             if self.renderer is None:
                 raise ValueError("Renderer is required for Prompt objects")
@@ -94,12 +93,12 @@ class Chat:
             if "role" not in message or "content" not in message:
                 raise ValueError("Dict message must contain 'role' and 'content' keys")
             return message
-        elif isinstance(message, Message):
+        elif isinstance(message, litellm.Message):
             return message.model_dump()
         else:
             raise ValueError(f"Unsupported message type: {type(message)}")
 
-    def append(self, message: Union[Prompt, str, dict, Message]) -> None:
+    def append(self, message: Union[Prompt, str, dict, litellm.Message]) -> None:
         """
         Append a message to the chat.
         """
@@ -109,26 +108,31 @@ class Chat:
 
     def __call__(
         self,
-        message: Prompt | dict | Message | str,
+        message: Prompt | dict | litellm.Message | str,
         response_format=None,
+        tools: Optional[list] = None,
         **kwargs
     ) -> str:
-        """
-        Allow the Chat object to be called as a function.
-        Appends the given message and gets LLM response, processing any tool calls up to self.max_loops.
-        Returns the content of the first response message without tool calls.
-        """
+        if response_format:
+            if self.can_do_response_format:
+                kwargs["response_format"] = response_format
+            else:
+                if tools:
+                    raise ValueError("When emulating response_format you cannot have tools")
+                tools = [response_format]
+
+        # Add any new tools to the list
+        if tools:
+            for tool in tools:
+                if tool not in self.tools:
+                    self.tools.append(tool)
+
         logging.debug(f"Starting chat call with message: {message}")
         self.append(message)
 
         loop_count = 0
         while loop_count < self.max_loops:
-            if self.tool_manager:
-                tools = self.tool_manager.get_tools()
-            else:
-                tools = []
-
-            response_content = self.get_llm_response(response_format=response_format, tools=tools, **kwargs)
+            response_content = self.get_llm_response(**kwargs)
 
             # Check if response has tool calls
             if not self.get_tool_calls_message():
@@ -137,35 +141,17 @@ class Chat:
 
             # Process tool calls and continue loop
             logging.debug(f"Processing tool calls, loop {loop_count + 1}")
-            self.process(tools)
+            self.process()
             loop_count += 1
 
         logging.warning(f"Reached maximum loops ({self.max_loops}) without finding non-tool response")
-        response_content = self.get_llm_response(response_format=response_format, **kwargs)
+        response_content = self.get_llm_response(**kwargs)
         return response_content
 
-    def get_llm_response(self, response_format=None, **kwargs) -> str:
-        if response_format:
-            if kwargs.get("tools"):
-                raise ValueError("tools and response_format cannot be used together")
-            if self.emulate_response_format:
-                kwargs["tools"] = [response_format]
-            else:
-                kwargs["response_format"] = response_format
-        response = self.llm_reply(**kwargs)
-        message = response.choices[0].message
-        if response_format:
-            if self.emulate_response_format:
-                return self.process([response_format])[0]
-            else:
-                return response_format.model_validate_json(message.content)
-        else:
-            return message.content
-
-    def llm_reply(self, tools=[], strict=False, **kwargs) -> ModelResponse:
-        if strict and not tools:
+    def get_llm_response(self, strict=False, **kwargs) -> str:
+        if strict and not self.tools:
             raise ValueError("Tools must be provided if strict is True")
-        schemas = get_tool_defs(tools, strict=strict)
+        schemas = get_tool_defs(self.tools, strict=strict)
         args = {
             "model": self.model,
             "messages": self.messages,
@@ -181,9 +167,8 @@ class Chat:
         args.update(kwargs)
 
         logger.debug(f"llm_reply args: {pformat(args, width=120)}")
-        logger.debug(f"Sending request to LLM with {len(self.messages)} messages")
 
-        result = completion(**args)
+        result = litellm.completion(**args)
 
         logger.debug(
             f"Received response from LLM: {pformat(result.to_dict(), width=120)}"
@@ -193,26 +178,22 @@ class Chat:
 
         if (
             self.one_tool_per_step
-            and hasattr(message, "tool_calls")
+            and self._is_tool_call_message(message)
             and message.tool_calls
         ):
             if len(message.tool_calls) > 1:
                 logging.warning(f"More than one tool call: {message.tool_calls}")
                 message.tool_calls = [message.tool_calls[0]]
 
-        if len(schemas) > 0:
-            if not hasattr(message, "tool_calls") or not message.tool_calls:
-                logging.warning(f"No function call for schemas: {schemas}.")
-
         self.append(message)
 
-        return result
+        return message.content
 
-    def process(self, tools, **kwargs):
+    def process(self, **kwargs):
         message = self.get_tool_calls_message()
         if not message:
             raise ValueError("No message to process")
-        results = process_message(message, tools, **kwargs)
+        results = process_message(message, self.tools, **kwargs)
         outputs = []
         for result in results:
             if result.soft_errors:
@@ -232,15 +213,18 @@ class Chat:
 
         return outputs
 
-    def get_tool_calls_message(self) -> Message:
+    def _is_tool_call_message(self, message: litellm.Message) -> bool:
+        return hasattr(message, "tool_calls") and message.tool_calls
+
+    def get_tool_calls_message(self) -> litellm.Message:
         """
         Return the last message in the chat history if it has 'tool_calls' key, or None if the history is empty.
         """
         if not self.messages:
             return None
         dict_message = self.messages[-1]
-        message = Message(**dict_message)
-        if hasattr(message, "tool_calls") and message.tool_calls:
+        message = litellm.Message(**dict_message)
+        if self._is_tool_call_message(message):
             return message
         else:
             return None

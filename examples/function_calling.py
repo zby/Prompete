@@ -16,7 +16,7 @@ def get_current_weather(location: str, unit: str = "celsius") -> str:
 chat = Chat(model="gpt-4o-mini")
 
 # Define the user's question
-user_question = "What's the weather like in London?"
+user_question = "My plane is landing in London what should I wear?"
 content = chat(user_question, tools=[get_current_weather])
 
 # Print the results
