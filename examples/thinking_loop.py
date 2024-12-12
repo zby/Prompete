@@ -14,22 +14,15 @@ logger.setLevel(logging.DEBUG)
 #)
 
 class ThoughtOrganizer:
-    def __init__(self, max_thoughts: int = 4):
+    def __init__(self):
         self.thoughts = []
-        self.max_thoughts = max_thoughts
 
     def add_thought(self, thought: str) -> str:
         """Add a thought to the problem"""
         self.thoughts.append(thought)
-        communicate = f"Thought number {len(self.thoughts)} added:\n\n{thought}"
-        logger.debug(communicate)
-        return communicate
-
-    def get_thoughts(self) -> list:
-        """Get available thought tools"""
-        if len(self.thoughts) < self.max_thoughts:
-            return [self.add_thought]
-        return []
+        record = f"Thought number {len(self.thoughts)} added:\n\n{thought}"
+        logger.debug(record)
+        return record
 
     def clear_thoughts(self) -> str:
         """Clear all thoughts"""
@@ -37,16 +30,12 @@ class ThoughtOrganizer:
         return "Thoughts cleared."
     
     def get_tools(self) -> list[Callable]:
-        logger.debug(f"Getting tools ({len(self.thoughts)}/{self.max_thoughts})")
-        if len(self.thoughts) < self.max_thoughts:
-            return [self.add_thought]
-        else:
-            return []
+        return [self.add_thought]
 
 
-MAX_THOUGHTS = 7
+MAX_THOUGHTS = 20
 # Create a Chat instance
-chat = Chat(model="gpt-4o-mini", max_loops = MAX_THOUGHTS - 1, tool_manager=ThoughtOrganizer(MAX_THOUGHTS))
+chat = Chat(model="gpt-4o", max_loops = MAX_THOUGHTS - 1, tool_manager=ThoughtOrganizer())
 
 
 problem = """7 axles are equally spaced around a circle. A gear is placed on each axle such
@@ -62,7 +51,7 @@ user_question = f"""Please analyze the following problem:
 You can use the `add_thought` function to collect your thoughts on the problem.
 Think step by step - don't rush, at each step add just one thought.
 This might be a tricky question - please check the consistency of your thinking.
-After 4 thoughts you need to formulate your answer.
+After {MAX_THOUGHTS} thoughts you need to formulate your answer.
 """
 answer = chat(user_question)
 
@@ -71,3 +60,5 @@ print("User: ", user_question)
 print("Answer: ", answer)
 
 pprint(chat.messages)
+
+pprint(chat.tool_manager.thoughts)

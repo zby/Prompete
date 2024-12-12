@@ -141,7 +141,8 @@ class Chat:
             loop_count += 1
 
         logging.warning(f"Reached maximum loops ({self.max_loops}) without finding non-tool response")
-        return self.messages[-1]['content']
+        response_content = self.get_llm_response(response_format=response_format, **kwargs)
+        return response_content
 
     def get_llm_response(self, response_format=None, **kwargs) -> str:
         if response_format:
