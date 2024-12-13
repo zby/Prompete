@@ -1,23 +1,24 @@
 import pytest
 from dataclasses import dataclass
-from litellm import Message, TextCompletionResponse, TextChoices
+import litellm
+#from litellm import Message, TextCompletionResponse, TextChoices
 from typing import Any, Optional
 import json
 
 from llm_easy_tools import ToolResult
 from jinja2 import Environment, DictLoader, FileSystemLoader, ChoiceLoader
 
-from prompete import Chat, Prompt, SystemPrompt, ToolManager, ToolList
+from prompete import Chat, Prompt, SystemPrompt, Message
 
 def create_mock_response(
     content: Any, role: str = "assistant", tool_calls: Optional[list] = None
-) -> TextCompletionResponse:
-    message = Message(
+) -> litellm.TextCompletionResponse:
+    message = litellm.Message(
         content=json.dumps(content) if isinstance(content, dict) else content,
         role=role,
         tool_calls=tool_calls or [],
     )
-    return TextCompletionResponse(choices=[TextChoices(message=message)])
+    return litellm.TextCompletionResponse(choices=[litellm.TextChoices(message=message)])
 
 
 def test_append():
@@ -40,19 +41,26 @@ def test_append():
     chat.append(greeting)
 
     assert len(chat.messages) == 1
-    assert chat.messages[0]["content"] == "Hello Alice! Good morning."
+    assert isinstance(chat.messages[0], Message)
+    message_dict = chat.messages[0].make_dict()
+    assert message_dict["role"] == "user"
+    assert message_dict["content"] == "Hello Alice! Good morning."
 
     chat.append("Hello, can you help me?")
     assert len(chat.messages) == 2
-    assert chat.messages[1]["content"] == "Hello, can you help me?"
+    assert isinstance(chat.messages[1], Message)
+    message_dict = chat.messages[1].make_dict()
+    assert message_dict["role"] == "user"
+    assert message_dict["content"] == "Hello, can you help me?"
 
 
 def test_system_prompt():
     chat = Chat(model="gpt-3.5-turbo", system_prompt="You are a helpful AI assistant.")
 
     assert len(chat.messages) == 1
-    assert chat.messages[0]["role"] == "system"
-    assert chat.messages[0]["content"] == "You are a helpful AI assistant."
+    message_dict = chat.messages[0].make_dict()
+    assert message_dict["role"] == "system"
+    assert message_dict["content"] == "You are a helpful AI assistant."
 
     @dataclass(frozen=True)
     class SpecialSystemPrompt(SystemPrompt):
@@ -70,8 +78,9 @@ def test_system_prompt():
     chat = Chat(model="gpt-3.5-turbo", renderer=renderer, system_prompt=system_prompt)
 
     assert len(chat.messages) == 1
-    assert chat.messages[0]["role"] == "system"
-    assert chat.messages[0]["content"] == (
+    message_dict = chat.messages[0].make_dict()
+    assert message_dict["role"] == "system"
+    assert message_dict["content"] == (
         "You are a helpful AI assistant. Your capabilities include: "
         "answering questions, providing information, and assisting with tasks."
     )
@@ -80,8 +89,9 @@ def test_system_prompt():
     chat.append({"role": "user", "content": "Hello, can you help me?"})
 
     assert len(chat.messages) == 2
-    assert chat.messages[1]["role"] == "user"
-    assert chat.messages[1]["content"] == "Hello, can you help me?"
+    message_dict = chat.messages[1].make_dict()
+    assert message_dict["role"] == "user"
+    assert message_dict["content"] == "Hello, can you help me?"
 
 
 def test_chat_append_tool_result():
@@ -99,9 +109,10 @@ def test_chat_append_tool_result():
 
     # Assert that the message was added correctly
     assert len(chat.messages) == 1
-    assert chat.messages[0]["role"] == "tool"
-    assert chat.messages[0]["name"] == "TestTool"
-    assert chat.messages[0]["content"] == "This is the result of the test tool."
+    message_dict = chat.messages[0].make_dict()
+    assert message_dict["role"] == "tool"
+    assert message_dict["name"] == "TestTool"
+    assert message_dict["content"] == "This is the result of the test tool."
 
 
 def test_chat_without_renderer():
@@ -109,13 +120,15 @@ def test_chat_without_renderer():
 
     chat.append("Hello, AI!")
     assert len(chat.messages) == 1
-    assert chat.messages[0]["role"] == "user"
-    assert chat.messages[0]["content"] == "Hello, AI!"
+    message_dict = chat.messages[0].make_dict()
+    assert message_dict["role"] == "user"
+    assert message_dict["content"] == "Hello, AI!"
 
     chat.append({"role": "assistant", "content": "Hello! How can I assist you today?"})
     assert len(chat.messages) == 2
-    assert chat.messages[1]["role"] == "assistant"
-    assert chat.messages[1]["content"] == "Hello! How can I assist you today?"
+    message_dict = chat.messages[1].make_dict()
+    assert message_dict["role"] == "assistant"
+    assert message_dict["content"] == "Hello! How can I assist you today?"
 
     with pytest.raises(ValueError):
 
@@ -139,8 +152,9 @@ def test_chat_with_renderer():
 
     chat.append(TestPrompt(value="example"))
     assert len(chat.messages) == 1
-    assert chat.messages[0]["role"] == "user"
-    assert chat.messages[0]["content"] == "This is a test prompt with example."
+    message_dict = chat.messages[0].make_dict()
+    assert message_dict["role"] == "user"
+    assert message_dict["content"] == "This is a test prompt with example."
 
 
 def test_invalid_message_type():
@@ -283,31 +297,6 @@ def test_render_prompt():
     assert chat.render_prompt(prompt1, value2="test2") == "value1: test1\nvalue2: test2"
 
 
-def test_llm_reply_with_tool_choice(mocker):
-    response = create_mock_response("Test response")
-    # Mock the litellm completion function
-    mock_completion = mocker.patch("prompete.chat.completion")
-    mock_completion.return_value = response
-
-    # Create a Chat instance
-    renderer = Environment(loader=DictLoader({}))
-    chat = Chat(model="gpt-3.5-turbo", renderer=renderer)
-
-    # Call llm_reply with a tool_choice parameter
-    tool_choice = {"type": "function", "function": {"name": "get_weather"}}
-    response = chat.llm_reply(tool_choice=tool_choice)
-
-    # Assert that the completion was called with the correct parameters
-    mock_completion.assert_called_once_with(
-        model="gpt-3.5-turbo",
-        messages=mocker.ANY,
-        tool_choice=tool_choice,
-        num_retries=3,
-    )
-
-    # Assert that the response is correct
-    assert response.choices[0].message.content == "Test response"
-
 def test_process_tool_calls(mocker):
     def get_current_weather(location: str, unit: str = "celsius") -> str:
         """Get the current weather in a given location"""
@@ -323,7 +312,7 @@ def test_process_tool_calls(mocker):
     ultimate_answer = "The weather in London is sunny and 22°C"
 
         # Mock completion - first call returns tool call, second returns final response
-    mock_completion = mocker.patch("prompete.chat.completion")
+    mock_completion = mocker.patch("litellm.completion")
     mock_completion.side_effect = [
         create_mock_response(
             content=None,
@@ -339,7 +328,7 @@ def test_process_tool_calls(mocker):
         create_mock_response(ultimate_answer),
     ]
 
-    chat = Chat(model="gpt-4-0125-preview", tool_manager=ToolList([get_current_weather]))
+    chat = Chat(model="gpt-4-0125-preview", tools=[get_current_weather], max_loops=2)
 
     # Call chat with user question
     user_question = "What's the weather like in London?"
@@ -353,50 +342,18 @@ def test_process_tool_calls(mocker):
     
     # Verify messages sequence
     assert len(chat.messages) == 4
-    assert chat.messages[0]["role"] == "user"
-    assert chat.messages[0]["content"] == user_question
-    assert chat.messages[1]["role"] == "assistant"
-    assert chat.messages[1]["tool_calls"][0]["function"]["name"] == "get_current_weather"
-    assert chat.messages[2]["role"] == "tool"
-    assert chat.messages[2]["content"] == str(get_current_weather(**weather_args))
-    assert chat.messages[3]["role"] == "assistant"
-    assert chat.messages[3]["content"] == "The weather in London is sunny and 22°C"
-
-
-def test_llm_reply_strict_parameter(mocker):
-    # Mock the get_tool_defs function
-    mock_get_tool_defs = mocker.patch("prompete.chat.get_tool_defs")
-
-    # Mock the completion function
-    mock_completion = mocker.patch("prompete.chat.completion")
-    mock_completion.return_value = create_mock_response("Test response")
-
-    # Define a dummy tool function
-    def dummy_tool():
-        pass
-
-    # Create a Chat instance
-    chat = Chat(model="gpt-4-0125-preview")
-
-    # Call llm_reply with strict=True
-    chat.llm_reply(strict=True, tools=[dummy_tool])
-
-    # Assert that get_tool_defs was called with strict=True
-    mock_get_tool_defs.assert_called_once_with([dummy_tool], strict=True)
-
-    # Reset the mock and call llm_reply with strict=False
-    mock_get_tool_defs.reset_mock()
-    chat.llm_reply(tools=[dummy_tool], strict=False)
-
-    # Assert that get_tool_defs was called with strict=False
-    mock_get_tool_defs.assert_called_once_with([dummy_tool], strict=False)
-
-    # Reset the mock and call llm_reply without specifying strict (should default to False)
-    mock_get_tool_defs.reset_mock()
-    chat.llm_reply(tools=[dummy_tool])
-
-    # Assert that get_tool_defs was called with the default value of strict (False)
-    mock_get_tool_defs.assert_called_once_with([dummy_tool], strict=False)
+    message_dict = chat.messages[0].make_dict()
+    assert message_dict["role"] == "user"
+    assert message_dict["content"] == user_question
+    message_dict = chat.messages[1].make_dict()
+    assert message_dict["role"] == "assistant"
+    assert message_dict["tool_calls"][0]["function"]["name"] == "get_current_weather"
+    message_dict = chat.messages[2].make_dict()
+    assert message_dict["role"] == "tool"
+    assert message_dict["content"] == str(get_current_weather(**weather_args))
+    message_dict = chat.messages[3].make_dict()
+    assert message_dict["role"] == "assistant"
+    assert message_dict["content"] == "The weather in London is sunny and 22°C"
 
 
 def test_chat_response_format(mocker):
@@ -409,13 +366,14 @@ def test_chat_response_format(mocker):
     test_response_object = TestResponseFormat(message="Test response", confidence=0.95)
 
     # Mock the completion function
-    mock_completion = mocker.patch("prompete.chat.completion")
+    mock_completion = mocker.patch("litellm.completion")
     mock_completion.return_value = create_mock_response(
         test_response_object.model_dump()
     )
 
     # Create a Chat instance
-    chat = Chat(model="some_model", emulate_response_format=False)
+    chat = Chat(model="some_model")
+    chat.can_do_response_format = True
 
     # Call the chat with response_format
     response = chat(
@@ -452,7 +410,7 @@ def test_chat_emulate_response_format(mocker):
     )
 
     # Mock the completion function
-    mock_completion = mocker.patch("prompete.chat.completion")
+    mock_completion = mocker.patch("litellm.completion")
     mock_completion.return_value = create_mock_response(
         content=None,
         tool_calls=[
@@ -468,7 +426,7 @@ def test_chat_emulate_response_format(mocker):
     )
 
     # Create a Chat instance with emulate_response_format=True
-    chat = Chat(model="some_model", emulate_response_format=True)
+    chat = Chat(model="some_model")
 
     # Call the chat with response_format
     response = chat(

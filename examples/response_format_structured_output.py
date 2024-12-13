@@ -32,7 +32,7 @@ with open(file_path, "r") as file:
 #model = "ollama_chat/llama3.1:8b-instruct-q8_0"
 
 model = "gpt-4o-mini"
-chat = Chat(model=model, emulate_response_format=True)
+chat = Chat(model=model)
 
 prompt = f"{story}\n\nPlease print the information about companies mentioned in the text above."
 

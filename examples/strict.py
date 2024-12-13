@@ -19,7 +19,7 @@ def get_current_weather(
 
 
 # Create a Chat instance
-chat = Chat(model="gpt-4o-mini")
+chat = Chat(model="gpt-4o-mini", max_loops=2)
 
 # Define the user's question
 user_question = "What's the weather like in London?"

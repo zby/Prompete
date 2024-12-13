@@ -1,9 +1,10 @@
-from typing import Callable, Optional, Union, Protocol, Any
+from typing import Callable, Optional, Union, Protocol, Any, List
 from dataclasses import dataclass, field
 import litellm
 from pprint import pformat
+from datetime import datetime
 
-from llm_easy_tools import get_tool_defs, LLMFunction
+from llm_easy_tools import get_tool_defs, LLMFunction, ToolResult
 from llm_easy_tools.processor import process_message
 from llm_easy_tools.types import ChatCompletionMessageToolCall
 
@@ -39,18 +40,37 @@ class Renderer(Protocol):
     def render(self, template: str, **kwargs: Any) -> str: ...
 
 @dataclass
+class Message:
+    """
+    Represents a message in the chat history.
+    data is either a litellm.Message (for regular messages), a ToolResult (for tool results) or a dict with role and content.
+    """
+    data: Union[litellm.Message, ToolResult, dict]
+    timestamp: datetime = field(default_factory=datetime.now)
+
+    def make_dict(self) -> dict:
+        """Convert the message to a format suitable for LLM input"""
+        if isinstance(self.data, ToolResult):
+            return self.data.to_message()
+        elif isinstance(self.data, dict):
+            return self.data
+        else:
+            return self.data.model_dump()
+
+
+@dataclass
 class Chat:
     model: str
     renderer: Optional[Renderer] = None
-    messages: list[dict] = field(default_factory=list)
-    system_prompt: Optional[Union[Prompt, str, dict, litellm.Message]] = None
+    messages: List[Message] = field(default_factory=list)
+    system_prompt: Optional[Union[Prompt, str, dict, Message]] = None
     fail_on_tool_error: bool = (
         True  # if False the error message is passed to the LLM to fix the call, if True exception is raised
     )
     one_tool_per_step: bool = (
         True  # for stateful tools executing more than one tool call per step is often confusing for the LLM
     )
-    max_loops: int = 3
+    max_loops: int = 1
     retries: int = 3
     custom_llm_provider: Optional[str] = None
     tools: list = field(default_factory=list)
@@ -58,9 +78,10 @@ class Chat:
 
     def __post_init__(self):
         if self.system_prompt:
-            message = self.make_message(self.system_prompt)
-            message["role"] = "system"
-            self.append(message)
+            message = self._make_message(self.system_prompt)
+            # this is not perfect - but message should be a dict here
+            message.data["role"] = "system"
+            self.messages.append(message)
         
         # Check if model supports response_format
         params = litellm.get_supported_openai_params(model=self.model)
@@ -81,30 +102,30 @@ class Chat:
         result = template.render(**obj_context)
         return result
 
-    def make_message(self, message: Union[Prompt, str, dict, litellm.Message]) -> dict:
+    def _make_message(self, message: Union[Prompt, str, dict, litellm.Message, ToolResult]) -> Message:
+        """Convert various message types to a Message object"""
         if isinstance(message, Prompt):
             if self.renderer is None:
                 raise ValueError("Renderer is required for Prompt objects")
             content = self.render_prompt(message)
-            return {"role": message.role(), "content": content.strip()}
+            return Message(data={"role": message.role(), "content": content.strip()})
         elif isinstance(message, str):
-            return {"role": "user", "content": message}
+            return Message(data={"role": "user", "content": message})
         elif isinstance(message, dict):
             if "role" not in message or "content" not in message:
                 raise ValueError("Dict message must contain 'role' and 'content' keys")
-            return message
-        elif isinstance(message, litellm.Message):
-            return message.model_dump()
+            return Message(data=message)
+        elif isinstance(message, litellm.Message) or isinstance(message, ToolResult):
+            return Message(data=message)
         else:
             raise ValueError(f"Unsupported message type: {type(message)}")
 
-    def append(self, message: Union[Prompt, str, dict, litellm.Message]) -> None:
+    def append(self, content: Union[Prompt, str, dict, litellm.Message, ToolResult]) -> None:
         """
         Append a message to the chat.
         """
-        message_dict = self.make_message(message)
-        logging.debug(f"Appending message: {message_dict}")
-        self.messages.append(message_dict)
+        message = self._make_message(content)
+        self.messages.append(message)
 
     def __call__(
         self,
@@ -112,7 +133,7 @@ class Chat:
         response_format=None,
         tools: Optional[list] = None,
         **kwargs
-    ) -> str:
+    ) -> Optional[str]:
         if response_format:
             if self.can_do_response_format:
                 kwargs["response_format"] = response_format
@@ -132,29 +153,39 @@ class Chat:
 
         loop_count = 0
         while loop_count < self.max_loops:
-            response_content = self.get_llm_response(**kwargs)
+            response = self.get_llm_response(**kwargs)
 
             # Check if response has tool calls
-            if not self.get_tool_calls_message():
+            if not self._is_tool_calls_message(response):
                 logging.debug(f"Found response without tool calls after {loop_count} loops")
-                return response_content
+                if response_format:
+                    return response_format.model_validate_json(response.content)
+                else:
+                    return response.content
+
 
             # Process tool calls and continue loop
             logging.debug(f"Processing tool calls, loop {loop_count + 1}")
-            self.process()
+            outputs = self.process(response)
+            if response_format and not self.can_do_response_format:
+                return outputs[0]
             loop_count += 1
 
-        logging.warning(f"Reached maximum loops ({self.max_loops}) without finding non-tool response")
-        response_content = self.get_llm_response(**kwargs)
-        return response_content
+        if self.max_loops > 1:
+            logging.warning(f"Reached maximum loops ({self.max_loops}) without finding non-tool response")
+        return None
 
-    def get_llm_response(self, strict=False, **kwargs) -> str:
+    def messages_to_dict_list(self) -> List[dict]:
+        """Convert the messages list to a format suitable for LLM input"""
+        return [msg.make_dict() for msg in self.messages]
+
+    def get_llm_response(self, strict=False, **kwargs) -> litellm.Message:
         if strict and not self.tools:
             raise ValueError("Tools must be provided if strict is True")
         schemas = get_tool_defs(self.tools, strict=strict)
         args = {
             "model": self.model,
-            "messages": self.messages,
+            "messages": self.messages_to_dict_list(),
             "num_retries": self.retries,
         }
         if self.custom_llm_provider:
@@ -178,7 +209,7 @@ class Chat:
 
         if (
             self.one_tool_per_step
-            and self._is_tool_call_message(message)
+            and self._is_tool_calls_message(message)
             and message.tool_calls
         ):
             if len(message.tool_calls) > 1:
@@ -187,19 +218,16 @@ class Chat:
 
         self.append(message)
 
-        return message.content
+        return message
 
-    def process(self, **kwargs):
-        message = self.get_tool_calls_message()
-        if not message:
-            raise ValueError("No message to process")
+    def process(self, message: litellm.Message, **kwargs):
         results = process_message(message, self.tools, **kwargs)
         outputs = []
         for result in results:
             if result.soft_errors:
                 for soft_error in result.soft_errors:
                     logger.warning(soft_error)
-            self.append(result.to_message())
+            self.append(result)
             if result.error and self.fail_on_tool_error:
                 print(result.stack_trace)
                 raise Exception(result.error)
@@ -213,21 +241,39 @@ class Chat:
 
         return outputs
 
-    def _is_tool_call_message(self, message: litellm.Message) -> bool:
-        return hasattr(message, "tool_calls") and message.tool_calls
+    def _is_tool_calls_message(self, message: Message) -> bool:
+        if isinstance(message, litellm.Message):
+            return hasattr(message, "tool_calls") and message.tool_calls
+        return False
 
-    def get_tool_calls_message(self) -> litellm.Message:
+    def get_last_tool_calls_message(self) -> Optional[litellm.Message]:
         """
         Return the last message in the chat history if it has 'tool_calls' key, or None if the history is empty.
         """
-        if not self.messages:
-            return None
-        dict_message = self.messages[-1]
-        message = litellm.Message(**dict_message)
-        if self._is_tool_call_message(message):
-            return message
-        else:
-            return None
+        for message in reversed(self.messages):
+            if isinstance(message.data, litellm.Message):
+                if hasattr(message.data, "tool_calls") and message.data.tool_calls:
+                    return message.data
+        return None
+
+    def get_tool_results(self) -> List[ToolResult]:
+        """
+        Finds ToolResults that correspond to the tool calls in the last tool_calls message.
+        Returns an empty list if there are no tool calls or no matching results.
+        """
+        tool_calls_msg = self.get_last_tool_calls_message()
+        if not tool_calls_msg:
+            return []
+
+        # Get the IDs from the tool calls
+        tool_call_ids = [call.id for call in tool_calls_msg.tool_calls]
+
+        # Find ToolResults that match these IDs
+        return [
+            msg.data for msg in self.messages
+            if isinstance(msg.data, ToolResult)
+            and msg.data.tool_call_id in tool_call_ids
+        ]
     
 
 if __name__ == "__main__":
@@ -243,7 +289,7 @@ if __name__ == "__main__":
 
     # Use make_message and print the result
     print("Simple Chat Example:")
-    print(simple_chat.make_message(simple_message))
+    print(simple_chat.make_message(simple_message).make_dict())
 
     print("\n" + "=" * 50 + "\n")
 
@@ -295,9 +341,9 @@ if __name__ == "__main__":
     assistant_prompt = AssistantPrompt(answer="This is an assistant response.")
 
     # Add prompts to the chat
-    pprint(chat.make_message(prompt1))
-    pprint(chat.make_message(prompt2))
-    pprint(chat.make_message(assistant_prompt))
+    pprint(chat.make_message(prompt1).make_dict())
+    pprint(chat.make_message(prompt2).make_dict())
+    pprint(chat.make_message(assistant_prompt).make_dict())
 
     # This does ot work!!!
 #    @dataclass(frozen=True)
