@@ -130,23 +130,13 @@ class Chat:
     def __call__(
         self,
         message: Prompt | dict | litellm.Message | str,
-        response_format=None,
-        tools: Optional[list] = None,
+        tools: list = [],
         **kwargs
     ) -> Optional[str]:
-        if response_format:
-            if self.can_do_response_format:
-                kwargs["response_format"] = response_format
-            else:
-                if tools:
-                    raise ValueError("When emulating response_format you cannot have tools")
-                tools = [response_format]
 
         # Add any new tools to the list
-        if tools:
-            for tool in tools:
-                if tool not in self.tools:
-                    self.tools.append(tool)
+        for tool in tools:
+            self.add_tool(tool)
 
         logging.debug(f"Starting chat call with message: {message}")
         self.append(message)
@@ -158,17 +148,11 @@ class Chat:
             # Check if response has tool calls
             if not self._is_tool_calls_message(response):
                 logging.debug(f"Found response without tool calls after {loop_count} loops")
-                if response_format:
-                    return response_format.model_validate_json(response.content)
-                else:
-                    return response.content
-
+                return response.content
 
             # Process tool calls and continue loop
             logging.debug(f"Processing tool calls, loop {loop_count + 1}")
-            outputs = self.process(response)
-            if response_format and not self.can_do_response_format:
-                return outputs[0]
+            self.process(response)
             loop_count += 1
 
         if self.max_loops > 1:
@@ -179,9 +163,21 @@ class Chat:
         """Convert the messages list to a format suitable for LLM input"""
         return [msg.make_dict() for msg in self.messages]
 
-    def get_llm_response(self, strict=False, **kwargs) -> litellm.Message:
+    def add_tool(self, tool: Callable) -> None:
+        if tool not in self.tools:
+            self.tools.append(tool)
+
+    def get_llm_response(self, strict=False, response_format=None, **kwargs) -> litellm.Message:
         if strict and not self.tools:
             raise ValueError("Tools must be provided if strict is True")
+
+        if response_format:
+            if self.can_do_response_format:
+                kwargs["response_format"] = response_format
+            else:
+                self.add_tool(response_format)
+                kwargs["tool_choice"] = response_format.__name__
+
         schemas = get_tool_defs(self.tools, strict=strict)
         args = {
             "model": self.model,
@@ -216,6 +212,14 @@ class Chat:
             if len(message.tool_calls) > 1:
                 logging.warning(f"More than one tool call: {message.tool_calls}")
                 message.tool_calls = [message.tool_calls[0]]
+
+        if response_format:
+            if not self.can_do_response_format:
+                outputs = self.process(message)
+                message.content = outputs[0]
+                message.tool_calls = None
+            else:
+                message.content = response_format.model_validate_json(message.content)
 
         self.append(message)
 
