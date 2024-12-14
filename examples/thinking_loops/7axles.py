@@ -1,5 +1,5 @@
 import logging
-from prompete import Chat, ToolList
+from prompete import Chat
 from pprint import pprint
 from typing import Callable
 
@@ -13,10 +13,10 @@ logger = logging.getLogger("thinking_loop")
 #    level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s"
 #)
 
-MAX_THOUGHTS = 4
-#MODEL = "gpt-4o"
+MAX_THOUGHTS = 7
+MODEL = "gpt-4o"
 #MODEL = "anthropic/claude-3-5-sonnet-latest"
-MODEL = "anthropic/claude-3-5-haiku-latest"
+#MODEL = "anthropic/claude-3-5-haiku-latest"
 
 
 class ThoughtOrganizer:
@@ -42,16 +42,10 @@ class ThoughtOrganizer:
         """Clear all thoughts"""
         self.thoughts = []
         return "Thoughts cleared."
-    
-    def get_tools(self) -> list[Callable]:
-        return [self.add_thought]
-        if len(self.thoughts) % self.summary_frequency == 0:
-            return [self.summarize]
-        else:
-            return [self.add_thought]
 
+thought_organizer = ThoughtOrganizer()
 # Create a Chat instance
-chat = Chat(model=MODEL, max_loops = MAX_THOUGHTS - 1, tool_manager=ThoughtOrganizer())
+chat = Chat(model=MODEL, max_loops = MAX_THOUGHTS, tools=[thought_organizer.add_thought])
 
 
 problem = """7 axles are equally spaced around a circle. A gear is placed on each axle such
@@ -70,9 +64,12 @@ Think step by step - don't rush, at each step add just one thought.
 This might be a tricky question - please check the consistency of your thinking
 and also check if you analyzed all the conditions set in the problem statement.
 
-After {MAX_THOUGHTS} thoughts you need to formulate your answer without adding additional thoughts.
+After {MAX_THOUGHTS} thoughts you need to formulate your answer.
 """
 answer = chat(user_question)
+print(f"Answer: {answer}")
+summary = chat("Summarize your thoughts and check for consistency.", tool_choice="none")
+print(f"Summary: {summary}")
 
 # Print the results
 #print("User: ", user_question)

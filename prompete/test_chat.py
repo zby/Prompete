@@ -326,6 +326,7 @@ def test_process_tool_calls(mocker):
             }]
         ),
         create_mock_response(ultimate_answer),
+        create_mock_response('addtional tool call'),
     ]
 
     chat = Chat(model="gpt-4-0125-preview", tools=[get_current_weather], max_loops=2)
@@ -354,6 +355,15 @@ def test_process_tool_calls(mocker):
     message_dict = chat.messages[3].make_dict()
     assert message_dict["role"] == "assistant"
     assert message_dict["content"] == "The weather in London is sunny and 22°C"
+
+    # Verify first call had tool_choice='auto'
+    first_call_args = mock_completion.call_args_list[0][1]
+    assert first_call_args["tool_choice"] == "auto"
+
+    # Verify that tool_choice passes to the completion function
+    content = chat(user_question, tool_choice="none")
+    call_args = mock_completion.call_args_list[2][1]
+    assert call_args["tool_choice"] == "none"
 
 
 def test_chat_response_format(mocker):

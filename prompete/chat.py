@@ -193,7 +193,8 @@ class Chat:
 
         if len(schemas) > 0:
             args["tools"] = schemas
-            args["tool_choice"] = "auto"
+            if not args.get("tool_choice"):
+                args["tool_choice"] = "auto"
 
         args.update(kwargs)
 
