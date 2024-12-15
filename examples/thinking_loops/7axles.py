@@ -16,7 +16,7 @@ logger = logging.getLogger("thinking_loop")
 MAX_THOUGHTS = 7
 MODEL = "gpt-4o"
 #MODEL = "anthropic/claude-3-5-sonnet-latest"
-#MODEL = "anthropic/claude-3-5-haiku-latest"
+MODEL = "anthropic/claude-3-5-haiku-latest"
 
 
 class ThoughtOrganizer:
@@ -64,12 +64,13 @@ Think step by step - don't rush, at each step add just one thought.
 This might be a tricky question - please check the consistency of your thinking
 and also check if you analyzed all the conditions set in the problem statement.
 
-After {MAX_THOUGHTS} thoughts you need to formulate your answer.
+After {MAX_THOUGHTS} thoughts you need to write a report.
+It should contain a reasoning path leading to a conclusion - the proposed answer.
 """
 answer = chat(user_question)
 print(f"Answer: {answer}")
-summary = chat("Summarize your thoughts and check for consistency.", tool_choice="none")
-print(f"Summary: {summary}")
+#summary = chat("Summarize your thoughts and check for consistency.", tool_choice="none")
+#print(f"Summary: {summary}")
 
 # Print the results
 #print("User: ", user_question)
