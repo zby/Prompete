@@ -406,6 +406,7 @@ def test_chat_response_format(mocker):
     # This should raise a ValidationError
     with pytest.raises(ValueError):
         chat("hello", response_format=TestResponseFormat)
+        # TODO: this generates a warning: "Expected `str` but got `test_chat_response_format.<locals>.TestResponseFormat` with..."
 
 
 def test_chat_emulate_response_format(mocker):

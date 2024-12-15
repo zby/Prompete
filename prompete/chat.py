@@ -146,13 +146,13 @@ class Chat:
         """
         # Add any new tools to the list
         for tool in tools:
-            self.add_tool(tool)
+            self._add_tool(tool)
 
-        response = self.get_llm_response(**kwargs)
+        response = self._get_llm_response(**kwargs)
 
         outputs = None
         if self._is_tool_calls_message(response):
-            outputs = self.process(response)
+            outputs = self._run_tools(response)
 
         return response, outputs
 
@@ -189,11 +189,11 @@ class Chat:
         """Convert the messages list to a format suitable for LLM input"""
         return [msg.make_dict() for msg in self.messages]
 
-    def add_tool(self, tool: Callable) -> None:
+    def _add_tool(self, tool: Callable) -> None:
         if tool not in self.tools:
             self.tools.append(tool)
 
-    def get_llm_response(self, strict=False, response_format=None, **kwargs) -> litellm.Message:
+    def _get_llm_response(self, strict=False, response_format=None, **kwargs) -> litellm.Message:
         if strict and not self.tools:
             raise ValueError("Tools must be provided if strict is True")
 
@@ -201,7 +201,7 @@ class Chat:
             if self.can_do_response_format:
                 kwargs["response_format"] = response_format
             else:
-                self.add_tool(response_format)
+                self._add_tool(response_format)
                 kwargs["tool_choice"] = response_format.__name__
 
         schemas = get_tool_defs(self.tools, strict=strict)
@@ -241,17 +241,18 @@ class Chat:
 
         if response_format:
             if not self.can_do_response_format:
-                outputs = self.process(message)
+                outputs = self._run_tools(message)
                 message.content = outputs[0]
                 message.tool_calls = None
             else:
-                message.content = response_format.model_validate_json(message.content)
+                string_content = message.content
+                message.content = response_format.model_validate_json(string_content)
 
         self.append(message)
 
         return message
 
-    def process(self, message: litellm.Message, **kwargs):
+    def _run_tools(self, message: litellm.Message, **kwargs):
         results = process_message(message, self.tools, **kwargs)
         outputs = []
         for result in results:
@@ -277,7 +278,7 @@ class Chat:
             return hasattr(message, "tool_calls") and message.tool_calls
         return False
 
-    def get_last_tool_calls_message(self) -> Optional[litellm.Message]:
+    def _get_last_tool_calls_message(self) -> Optional[litellm.Message]:
         """
         Return the last message in the chat history if it has 'tool_calls' key, or None if the history is empty.
         """
@@ -292,7 +293,7 @@ class Chat:
         Finds ToolResults that correspond to the tool calls in the last tool_calls message.
         Returns an empty list if there are no tool calls or no matching results.
         """
-        tool_calls_msg = self.get_last_tool_calls_message()
+        tool_calls_msg = self._get_last_tool_calls_message()
         if not tool_calls_msg:
             return []
 
