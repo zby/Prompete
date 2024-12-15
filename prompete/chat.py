@@ -127,32 +127,54 @@ class Chat:
         message = self._make_message(content)
         self.messages.append(message)
 
-    def __call__(
+    def complete_once(
         self,
-        message: Prompt | dict | litellm.Message | str,
         tools: list = [],
         **kwargs
-    ) -> Optional[str]:
+    ) -> tuple[litellm.Message, Optional[List[Any]]]:
+        """
+        Performs one step of LLM interaction: gets a response and processes any tool calls.
 
+        Args:
+            tools:
+            **kwargs: Additional kwargs for get_llm_response and process methods
+
+        Returns:
+            tuple containing:
+            - The LLM response message
+            - List of tool outputs if any tools were called, None otherwise
+        """
         # Add any new tools to the list
         for tool in tools:
             self.add_tool(tool)
+
+        response = self.get_llm_response(**kwargs)
+
+        outputs = None
+        if self._is_tool_calls_message(response):
+            outputs = self.process(response, **kwargs)
+
+        return response, outputs
+
+    def __call__(
+        self,
+        message: Prompt | dict | litellm.Message | str,
+        **kwargs
+    ) -> Optional[str]:
 
         logging.debug(f"Starting chat call with message: {message}")
         self.append(message)
 
         loop_count = 0
-        while loop_count < self.max_loops:
-            response = self.get_llm_response(**kwargs)
+        while loop_count <= self.max_loops:
+            response, outputs = self.complete_once(**kwargs)
 
-            # Check if response has tool calls
-            if not self._is_tool_calls_message(response):
+            # If no tool calls were made, return the response content
+            if outputs is None:
                 logging.debug(f"Found response without tool calls after {loop_count} loops")
                 return response.content
 
-            # Process tool calls and continue loop
             logging.debug(f"Processing tool calls, loop {loop_count + 1}")
-            self.process(response)
             loop_count += 1
 
         if self.max_loops > 1:
@@ -279,7 +301,7 @@ class Chat:
             if isinstance(msg.data, ToolResult)
             and msg.data.tool_call_id in tool_call_ids
         ]
-    
+
 
 if __name__ == "__main__":
     import os
@@ -294,7 +316,7 @@ if __name__ == "__main__":
 
     # Use make_message and print the result
     print("Simple Chat Example:")
-    print(simple_chat.make_message(simple_message).make_dict())
+    print(simple_chat._make_message(simple_message).make_dict())
 
     print("\n" + "=" * 50 + "\n")
 
@@ -346,9 +368,9 @@ if __name__ == "__main__":
     assistant_prompt = AssistantPrompt(answer="This is an assistant response.")
 
     # Add prompts to the chat
-    pprint(chat.make_message(prompt1).make_dict())
-    pprint(chat.make_message(prompt2).make_dict())
-    pprint(chat.make_message(assistant_prompt).make_dict())
+    pprint(chat._make_message(prompt1).make_dict())
+    pprint(chat._make_message(prompt2).make_dict())
+    pprint(chat._make_message(assistant_prompt).make_dict())
 
     # This does ot work!!!
 #    @dataclass(frozen=True)

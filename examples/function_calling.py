@@ -4,7 +4,7 @@ MODEL = "gpt-4o"
 #MODEL = "gpt-4o-mini"
 #MODEL = "anthropic/claude-3-5-sonnet-latest"
 
-def get_current_weather(location: str, unit: str = "celsius") -> str:
+def get_current_weather(location: str, unit: str = "celsius") -> dict:
     """Get the current weather in a given location"""
     # In a real scenario, you would call an actual weather API here
     return {
