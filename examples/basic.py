@@ -38,4 +38,5 @@ print("AI:", response)
 # Access the chat history
 print("\nChat History:")
 for message in chat.messages:
-    print(f"{message['role'].capitalize()}: {message['content'][:50]}...")
+    message_dict = message.make_dict()
+    print(f"{message_dict['role'].capitalize()}: {message_dict['content'][:50]}...")

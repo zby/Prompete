@@ -152,7 +152,7 @@ class Chat:
 
         outputs = None
         if self._is_tool_calls_message(response):
-            outputs = self.process(response, **kwargs)
+            outputs = self.process(response)
 
         return response, outputs
 
@@ -167,6 +167,10 @@ class Chat:
 
         loop_count = 0
         while loop_count <= self.max_loops:
+            if loop_count == self.max_loops:
+                # we don't want tool calls at the last completion
+                kwargs['tool_choice'] = 'none'
+
             response, outputs = self.complete_once(**kwargs)
 
             # If no tool calls were made, return the response content
