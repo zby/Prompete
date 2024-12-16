@@ -113,38 +113,80 @@ The template can use the prompt fields as variables.
 
 ### Function Calling
 
-Prompete integrates LLMEasyTools for easy function calling.
-Here is the common weather example:
+Prompete integrates with LLMEasyTools to provide function calling capabilities.
+Here's how it works:
+
+#### Basic Function Calling
 
 ```python
 from prompete import Chat
 
-def get_current_weather(location: str, unit: str = "celsius") -> str:
+def get_weather(location: str, unit: str = "celsius") -> dict:
     """Get the current weather in a given location"""
-    # In a real scenario, you would call an actual weather API here
+    # Simulate weather API call
     return {
         "location": location,
         "temperature": 22,
         "unit": unit,
-        "forecast": ["sunny", "windy"]
+        "forecast": ["sunny", "windy"],
     }
 
-# Create a Chat instance
-chat = Chat(model="gpt-4o-mini")
-
-# Define the user's question
-user_question = "What's the weather like in London?"
-content = chat(user_question, tools=[get_current_weather])
-
-# Process the response
-outputs = chat.process()
-
-# Print the results
-print("User:", user_question)
-print("Content of the response:", content)
-# There might be more than one function call in the response - this is why output is a list
-print("Weather data:", outputs[0] if outputs else "No weather data retrieved")
+chat = Chat(model="gpt-4")
+response = chat("Should I bring an umbrella to London today?", tools=[get_weather])
+print(tool_results)
 ```
+
+#### Two Ways to Handle Tool Results
+
+When working with function calls, there are two main approaches to handle the results:
+
+1. **LLM Interpretation**: Let the LLM interpret the tool results and provide a human-friendly response
+```python
+# LLM will call the function and interpret results
+chat = Chat(model="gpt-4")
+response = chat("Should I bring an umbrella to London today?", tools=[get_weather])
+print(response)  # LLM provides a natural language response based on the weather data
+```
+The pitfall of this more 'agentic' approach is that the LLM can sometimes decide
+to guess the weather instead of calling the function.
+
+2. **Direct Code Processing**: Handle the tool results directly in your code
+```python
+# Get direct access to both LLM response and tool results
+chat = Chat(model="gpt-4")
+response, tool_results = chat.complete_once("What's the weather in London?", tools=[get_weather])
+if tool_results:
+    weather_data = tool_results[0]
+    print(f"Temperature: {weather_data['temperature']}°{weather_data['unit']}")
+```
+
+#### Control Over Tool Execution
+
+Prompete provides two main ways to control tool execution:
+
+- `max_loops`: - field in the Chat object - limits how many LLM request can be made in a single conversation turn
+- `tool_choice`: - parameter passed to LiteLLM - you can use it to force the LLM to use a specific tool
+
+```python
+# Example with controlled tool execution
+chat = Chat(
+    model="gpt-4",
+    max_loops=2,  # Allow up to 2 LLM calls per turn
+    one_tool_per_step=True,  # Prevent multiple tool calls at once
+    fail_on_tool_error=False  # Let LLM handle any tool errors
+)
+
+# Force the use of get_weather tool
+response, results = chat.complete_once(
+    "How's the weather?", 
+    tools=[get_weather],
+    tool_choice="get_weather"
+)
+```
+
+#### Tool Results in Conversation History
+
+All tool calls and their results are automatically saved in the chat history, making them available for context in future conversation turns.
 
 ## Key Concepts
 
