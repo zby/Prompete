@@ -14,26 +14,43 @@ def get_current_weather(location: str, unit: str = "celsius") -> dict:
         "forecast": ["sunny", "windy"],
     }
 
+user_question = "My plane is landing in London what should I wear?"
+
+####################
+# Getting tool results with LLM interpretation
+
 
 # Create a Chat instance
-chat = Chat(model=MODEL, max_loops=1, system_prompt="You are a helpful assistant that uses tools to get information.")
+chat = Chat(model=MODEL, system_prompt="You are a helpful assistant that uses tools to get information.")
 
-# Define the user's question
-user_question = "My plane is landing in London what should I wear?"
+# ask the LLM
 content = chat(user_question, tools=[get_current_weather])
 
 # Print the results
-print("User:", user_question)
-print("Content of the response:", content)
+print("User question:", user_question)
+print()
+print("LLM response:", content)
+print()
 print("Outputs from tools:", chat.get_tool_results())
 print()
+
+
+####################
+# Getting tool results without LLM interpretation
+
+# Create a Chat instance
+chat = Chat(model=MODEL, system_prompt="You are a helpful assistant that uses tools to get information.")
+chat.append(user_question)
+
+message, outputs = chat.complete_once(tools=[get_current_weather])
+
+# message.content should be empty when using OpenAI models - but might be non-empty when using Anthropic models
+
+# Print the results
+print("User question:", user_question)
 print()
-
-# A Chat instance that processes the tool results
-chat = Chat(model=MODEL, max_loops=2, system_prompt="You are a helpful assistant that uses tools to get information.")
-
-# Define the user's question
-user_question = "My plane is landing in London what should I wear?"
-content = chat(user_question, tools=[get_current_weather])
-print("Content of the response:", content)
+print("LLM response:", content)
+print()
+print("Outputs from tools:", outputs)
+print()
 

@@ -70,9 +70,9 @@ class Chat:
     one_tool_per_step: bool = (
         True  # for stateful tools executing more than one tool call per step is often confusing for the LLM
     )
-    max_loops: int = 1
     retries: int = 3
-    custom_llm_provider: Optional[str] = None
+    completion_kwargs: dict = field(default_factory=dict)
+    run_tools_kwargs: dict = field(default_factory=dict)
     tools: list = field(default_factory=list)
     can_do_response_format: bool = False
 
@@ -159,15 +159,16 @@ class Chat:
     def __call__(
         self,
         message: Prompt | dict | litellm.Message | str,
+        max_llm_requests: int = 2,
         **kwargs
     ) -> Optional[str]:
 
         logging.debug(f"Starting chat call with message: {message}")
         self.append(message)
 
-        loop_count = 0
-        while loop_count <= self.max_loops:
-            if loop_count == self.max_loops:
+        req_count = 1
+        while req_count <= max_llm_requests:
+            if req_count == max_llm_requests:
                 # we don't want tool calls at the last completion
                 kwargs['tool_choice'] = 'none'
 
@@ -175,14 +176,14 @@ class Chat:
 
             # If no tool calls were made, return the response content
             if outputs is None:
-                logging.debug(f"Found response without tool calls after {loop_count} loops")
+                logging.debug(f"Found response without tool calls after {req_count} loops")
                 return response.content
 
-            logging.debug(f"Processing tool calls, loop {loop_count + 1}")
-            loop_count += 1
+            logging.debug(f"Processing tool calls, loop {req_count + 1}")
+            req_count += 1
 
-        if self.max_loops > 1:
-            logging.warning(f"Reached maximum loops ({self.max_loops}) without finding non-tool response")
+        if max_llm_requests > 1:
+            logging.warning(f"Reached maximum loops ({max_llm_requests}) without finding non-tool response")
         return None
 
     def messages_to_dict_list(self) -> List[dict]:
@@ -210,8 +211,8 @@ class Chat:
             "messages": self.messages_to_dict_list(),
             "num_retries": self.retries,
         }
-        if self.custom_llm_provider:
-            args["custom_llm_provider"] = self.custom_llm_provider
+        if self.completion_kwargs:
+            args.update(self.completion_kwargs)
 
         if len(schemas) > 0:
             args["tools"] = schemas
@@ -252,7 +253,8 @@ class Chat:
 
         return message
 
-    def _run_tools(self, message: litellm.Message, **kwargs):
+    def _run_tools(self, message: litellm.Message):
+        kwargs = self.run_tools_kwargs
         results = process_message(message, self.tools, **kwargs)
         outputs = []
         for result in results:

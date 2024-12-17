@@ -329,11 +329,11 @@ def test_process_tool_calls(mocker):
         create_mock_response('addtional tool call'),
     ]
 
-    chat = Chat(model="gpt-4-0125-preview", tools=[get_current_weather], max_loops=2)
+    chat = Chat(model="gpt-4-0125-preview", tools=[get_current_weather])
 
     # Call chat with user question
     user_question = "What's the weather like in London?"
-    content = chat(user_question)
+    content = chat(user_question, max_llm_requests=2)
 
     # Check completion was called twice
     assert mock_completion.call_count == 2

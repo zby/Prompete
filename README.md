@@ -154,7 +154,9 @@ to guess the weather instead of calling the function.
 ```python
 # Get direct access to both LLM response and tool results
 chat = Chat(model="gpt-4")
-response, tool_results = chat.complete_once("What's the weather in London?", tools=[get_weather])
+chat.append("What's the weather in London?")
+response, tool_results = chat.complete_once(tools=[get_weather])
+# response is empty when using OpenAI models - but might be non-empty when using Anthropic models
 if tool_results:
     weather_data = tool_results[0]
     print(f"Temperature: {weather_data['temperature']}°{weather_data['unit']}")
@@ -162,27 +164,14 @@ if tool_results:
 
 #### Control Over Tool Execution
 
-Prompete provides two main ways to control tool execution:
+There are two ways to control tool execution loops:
 
-- `max_loops`: - field in the Chat object - limits how many LLM request can be made in a single conversation turn
-- `tool_choice`: - parameter passed to LiteLLM - you can use it to force the LLM to use a specific tool
+- `max_llm_requests`: - parameter to `__call__` - limits how many LLM request can be made in a single conversation turn
+    - default is 2 - first request to generate a tool call message - second one to interpret the tool call results
+    if the LLM does not return a tool call message, the second request will be skipped
+    you can set it to more than 2 if you want the LLM to try tool execution untill it gets the results it needs
+- `tool_choice`: - parameter to `__call__` and `compelete_once` passed to LiteLLM - you can use it to force the LLM to use a specific tool
 
-```python
-# Example with controlled tool execution
-chat = Chat(
-    model="gpt-4",
-    max_loops=2,  # Allow up to 2 LLM calls per turn
-    one_tool_per_step=True,  # Prevent multiple tool calls at once
-    fail_on_tool_error=False  # Let LLM handle any tool errors
-)
-
-# Force the use of get_weather tool
-response, results = chat.complete_once(
-    "How's the weather?", 
-    tools=[get_weather],
-    tool_choice="get_weather"
-)
-```
 
 #### Tool Results in Conversation History
 

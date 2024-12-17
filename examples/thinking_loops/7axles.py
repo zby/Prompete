@@ -14,7 +14,7 @@ logger = logging.getLogger("thinking_loop")
 #)
 
 MAX_THOUGHTS = 7
-MODEL = "gpt-4o"
+MODEL = "gpt-4o-mini"
 #MODEL = "anthropic/claude-3-5-sonnet-latest"
 MODEL = "anthropic/claude-3-5-haiku-latest"
 
@@ -43,10 +43,6 @@ class ThoughtOrganizer:
         self.thoughts = []
         return "Thoughts cleared."
 
-thought_organizer = ThoughtOrganizer()
-# Create a Chat instance
-chat = Chat(model=MODEL, max_loops = MAX_THOUGHTS, tools=[thought_organizer.add_thought])
-
 
 problem = """7 axles are equally spaced around a circle. A gear is placed on each axle such
 that each gear is engaged with the gear to its left and the gear to its right. The gears are
@@ -67,7 +63,11 @@ and also check if you analyzed all the conditions set in the problem statement.
 After {MAX_THOUGHTS} thoughts you need to write a report.
 It should contain a reasoning path leading to a conclusion - the proposed answer.
 """
-answer = chat(user_question)
+
+thought_organizer = ThoughtOrganizer()
+chat = Chat(model=MODEL, tools=[thought_organizer.add_thought])
+
+answer = chat(user_question, max_llm_requests=MAX_THOUGHTS)
 print(f"Answer: {answer}")
 #summary = chat("Summarize your thoughts and check for consistency.", tool_choice="none")
 #print(f"Summary: {summary}")
@@ -79,3 +79,5 @@ print(f"Answer: {answer}")
 #pprint(chat.messages)
 
 #pprint(chat.tool_manager.thoughts)
+
+ 
