@@ -1,4 +1,5 @@
 from typing import Callable, Optional, Union, Protocol, Any, List
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 import litellm
 from pprint import pformat
@@ -58,9 +59,22 @@ class Message:
             return self.data.model_dump()
 
 
+class LLMProvider(ABC):
+    @abstractmethod
+    def completion(self, **kwargs) -> Any:
+        """Execute completion request and return response"""
+        pass
+
+
+class LiteLLMProvider(LLMProvider):
+    def completion(self, **kwargs) -> Any:
+        return litellm.completion(**kwargs)
+
+
 @dataclass
 class Chat:
     model: str
+    llm_provider: LLMProvider = field(default_factory=LiteLLMProvider)
     renderer: Optional[Renderer] = None
     messages: List[Message] = field(default_factory=list)
     system_prompt: Optional[Union[Prompt, str, dict, Message]] = None
@@ -168,10 +182,10 @@ class Chat:
 
         req_count = 1
         while req_count <= max_llm_requests:
-            if req_count == max_llm_requests:
-                # we don't want tool calls at the last completion
-                kwargs['tool_choice'] = 'none'
-
+#            if req_count == max_llm_requests:
+#                # we don't want tool calls at the last completion
+#                kwargs['tool_choice'] = 'none'
+#
             response, outputs = self.complete_once(**kwargs)
 
             # If no tool calls were made, return the response content
@@ -223,7 +237,7 @@ class Chat:
 
         logger.debug(f"llm_reply args: {pformat(args, width=120)}")
 
-        result = litellm.completion(**args)
+        result = self.llm_provider.completion(**args)
 
         logger.debug(
             f"Received response from LLM: {pformat(result.to_dict(), width=120)}"
