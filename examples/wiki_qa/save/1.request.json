@@ -1,0 +1,101 @@
+{
+  "model": "gpt-4o-mini",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful AI assistant that answers questions using Wikipedia.\nYou have access to various Wikipedia tools to help you find and read information.\nYou should never access the tools in parallel - always use one tool at a time.\nAlways cite your sources by mentioning the Wikipedia pages you used.\nEvery 5 wikipedia retrievals, you should reflect on what you have learned and save the information in a structured way.\nIf you're not sure about something, say so."
+    },
+    {
+      "role": "user",
+      "content": "The user question is: What government position was held by the woman who portrayed Corliss Archer in the film Kiss and Tell?, you can use the wikipedia tools for research. When you have enough information to answer the question, please do so."
+    }
+  ],
+  "num_retries": 3,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "search",
+        "description": "Searches Wikipedia using the provided search query. It is a keyword search and works best with simple queries.\nThink about what pages exist on wikipedia and search accordingly. Never put two proper nouns into the same query,\nbecause there are no wikipedia pages about two topics. When trying to learn about a property of an object or a person,\nfirst search for that object then use other tools to locate the needed information.",
+        "parameters": {
+          "properties": {
+            "query": {
+              "description": "The query to search for on Wikipedia",
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_url",
+        "description": "Retrieves a page from Wikipedia by its URL, saves it as the current page and shows the top of that page. You need to use `lookup` or `read_more` to read the rest of the page.",
+        "parameters": {
+          "properties": {
+            "url": {
+              "description": "The URL to get",
+              "type": "string"
+            },
+            "goal": {
+              "description": "What information do you expect to find on this page and why did you choose this url?",
+              "type": "string"
+            }
+          },
+          "required": [
+            "url",
+            "goal"
+          ],
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "read_more",
+        "description": "Reads the next chunk of text from the current location in the current page.\nUse it if the information just received was interesting but seems to be cut short and you want to continue reading.",
+        "parameters": {
+          "properties": {},
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "lookup",
+        "description": "Looks up a word on the current page. Use it if you think you are on the right page and want to jump to a specific word on it.\nDon't use it for searching for new pages - use `search` for that.\nBe careful with using multiple words as a keyword - it might be better to choose one of them because it often\nhappens that the words appear in different order or separated by a word or a formatting in the text.",
+        "parameters": {
+          "properties": {
+            "keyword": {
+              "description": "The keyword to search",
+              "type": "string"
+            }
+          },
+          "required": [
+            "keyword"
+          ],
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "next_lookup",
+        "description": "Jumps to the next occurrence of the word searched previously.",
+        "parameters": {
+          "properties": {},
+          "type": "object"
+        }
+      }
+    }
+  ],
+  "tool_choice": "auto"
+}

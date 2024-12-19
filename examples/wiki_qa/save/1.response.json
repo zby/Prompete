@@ -1,0 +1,44 @@
+{
+  "id": "chatcmpl-AgEEKrZPOEWGoSk3YUNjIv9fkIEXL",
+  "created": 1734627840,
+  "model": "gpt-4o-mini-2024-07-18",
+  "object": "chat.completion",
+  "system_fingerprint": "fp_d02d531b47",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "message": {
+        "content": null,
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "function": {
+              "arguments": "{\"query\":\"Corliss Archer Kiss and Tell actress\"}",
+              "name": "search"
+            },
+            "id": "call_OCKQZ9HP17Y1hx2sYIpk9gGv",
+            "type": "function"
+          }
+        ],
+        "function_call": null
+      }
+    }
+  ],
+  "usage": {
+    "completion_tokens": 21,
+    "prompt_tokens": 524,
+    "total_tokens": 545,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": 0,
+      "audio_tokens": 0,
+      "reasoning_tokens": 0,
+      "rejected_prediction_tokens": 0
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": 0,
+      "cached_tokens": 0
+    }
+  },
+  "service_tier": null
+}
